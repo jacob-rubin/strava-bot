@@ -13,6 +13,8 @@ last-updated: 2026-09-10
 def generate(summary: WorkoutSummary, context: HistoryContext) -> tuple[str, str]
 ```
 
+`WorkoutSummary` and `HistoryContext` are defined in [Persistence — Data model for `generate()`](04-persistence.md#data-model-for-generate).
+
 **Inputs — Strong-derived only.** Parsed exercises with per-set weight and reps, working-set/rep/volume totals, per-exercise top set, workout name and start time, plus [§6](04-persistence.md) `history` context: previous best for each exercise, days since last performed, volume trend.
 
 **Constraints:**

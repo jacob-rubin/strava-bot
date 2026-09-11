@@ -36,7 +36,7 @@ Nothing in `app/`, `scripts/`, or `tests/` exists yet — this repo currently ho
 ## How to update this file
 
 - Flip a build-order row to `in progress` / `done` as work happens; add a one-line note if a step deviated from the spec.
-- Flip an open item to `resolved` and record the answer inline (e.g. "share sheet delivers full text — confirmed via Quick Look, 2026-09-XX") rather than deleting the row; PLANNING.md's §15 stays the historical record of what was in question.
+- Flip an open item to `resolved` and record the answer inline (e.g. "share sheet delivers full text — confirmed via Quick Look, 2026-09-XX") rather than deleting the row; [planning/11-open-items-and-sources.md](planning/11-open-items-and-sources.md)'s §15 stays the historical record of what was in question.
 - Bump `last-updated` whenever this file changes.
 
 ---
