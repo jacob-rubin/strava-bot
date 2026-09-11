@@ -8,6 +8,7 @@ This repo is spec-first: `app/`, `scripts/`, and `tests/` don't exist yet (see [
 - [docs/STATUS.md](docs/STATUS.md) — current build progress and open items. Check before starting work, update as steps complete.
 - [docs/PLANNING.md](docs/PLANNING.md) — index into the full spec at [docs/planning/](docs/planning/), chunked by topic (input contract, ingest API, persistence, Strava integration, LLM generation, config/layout, error handling, acceptance criteria, build order). Follow the link for whatever you're implementing; don't load the whole spec into context at once.
 - [docs/decisions/](docs/decisions/) — ADRs explaining *why* past choices were made. Check here before revisiting a decision that looks questionable in isolation.
+- [docs/glossary.md](docs/glossary.md) — domain terms used across the spec, each pointing at its defining section.
 
 ## Working in this repo
 
