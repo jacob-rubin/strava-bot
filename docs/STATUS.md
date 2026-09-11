@@ -1,11 +1,13 @@
 ---
 status: living-document
-last-updated: 2026-09-10
+last-updated: 2026-09-11
 ---
 
 ← [Index](PLANNING.md)
 
 # Build status
+
+**Current focus:** build-order step 1 — write `scripts/authorize.py`, obtain a refresh token, and confirm a manual `curl` to `POST /activities`.
 
 This tracks progress against the [build order](planning/10-build-order-and-client.md#13-build-order) and [open items](planning/11-open-items-and-sources.md#15-open-items). Unlike PLANNING.md, this file is expected to change on every work session — update it as steps complete instead of inferring progress from the code or git log.
 

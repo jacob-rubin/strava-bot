@@ -1,15 +1,15 @@
 ---
 status: authoritative
-last-updated: 2026-09-10
+last-updated: 2026-09-11
 supersedes: [feasibility-and-architecture.md, ingest-path-design.md, share-sheet-ingest.md, workflow-spec.md]
 ---
 
 # Strava Bot — Implementation Spec
 
 **Status:** authoritative. Supersedes `feasibility-and-architecture.md`, `ingest-path-design.md`, `share-sheet-ingest.md`, and `workflow-spec.md` in this project.
-**Last updated:** 2026-09-10
+**Last updated:** 2026-09-11
 
-See also: [CONSTRAINTS.md](CONSTRAINTS.md) (non-negotiable rules, read before editing `app/`), [STATUS.md](STATUS.md) (build progress), [decisions/](decisions/) (why, not just what).
+See also: [CONSTRAINTS.md](CONSTRAINTS.md) (non-negotiable rules, read before editing `app/`), [STATUS.md](STATUS.md) (build progress), [decisions/](decisions/) (why, not just what), [glossary.md](glossary.md) (domain terms).
 
 Every Strava API claim in this spec is tagged:
 
@@ -17,6 +17,23 @@ Every Strava API claim in this spec is tagged:
 - **[U]** — unverified or contradicted between sources. **Do not build a required path on a [U] claim.** Probe it at runtime and fall back.
 
 This spec is split into chunks for progressive disclosure. Read the section relevant to what you're doing rather than the whole thing.
+
+## Read by task
+
+Start from the row matching what you're doing instead of the whole spec.
+
+| Task | Read |
+| ---- | ---- |
+| Parser | [§3](planning/02-input-contract.md), [§12](planning/09-acceptance-criteria.md) |
+| Ingest endpoint + auth | [§5](planning/03-ingest-api.md), [§9](planning/07-config-and-repo-layout.md), [ADR 0001](decisions/0001-static-bearer-secret.md) |
+| Persistence, dedupe, idempotency | [§6](planning/04-persistence.md), [ADR 0003](decisions/0003-content-hash-dedupe-guard.md) |
+| Strava calls + OAuth | [§7](planning/05-strava-integration.md), [ADR 0002](decisions/0002-no-strava-read-scope.md), [ADR 0004](decisions/0004-primary-then-structured-upload.md) |
+| LLM title/description | [§8](planning/06-llm-generation.md), [ADR 0005](decisions/0005-pr-detection-in-code.md) |
+| Error handling + logging | [§11](planning/08-error-handling.md), [ADR 0006](decisions/0006-no-retry-queue.md) |
+| Config, secrets, repo layout | [§9](planning/07-config-and-repo-layout.md) |
+| What to build next | [STATUS.md](STATUS.md), [§13](planning/10-build-order-and-client.md) |
+
+Always: [CONSTRAINTS.md](CONSTRAINTS.md) before editing `app/`; [glossary.md](glossary.md) for domain terms.
 
 ## Contents
 
