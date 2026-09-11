@@ -50,6 +50,40 @@ Rolling per-exercise state for description context ([§8](06-llm-generation.md))
 
 Exercise-name → Strava taxonomy mapping is **not required** for the primary path ([§7.4](05-strava-integration.md#74-creating-the-activity)). Defer it to Phase 2.
 
+### Data model for `generate()`
+
+`app/models.py` derives these from the two collections above; they are the only inputs [§8](06-llm-generation.md) may see. Not persisted directly — built per-request from `parsed` (for `WorkoutSummary`) and `history/{exercise_name}` docs (for `HistoryContext`).
+
+```
+WorkoutSummary:
+  workout_name:  string                # title_line, §3
+  started_at:    datetime              # naive local
+  total_volume:  number                # working sets only
+  total_reps:    int
+  total_sets:    int
+  exercises:     [ ExerciseSummary ]
+
+ExerciseSummary:
+  name:          string                # base name, equipment stripped (§3 rule 7)
+  equipment:     string | null
+  top_set:       { weight, unit, reps } | null
+  total_volume:  number
+  total_reps:    int
+  sets:          [ WorkoutSet ]        # parser output, working + warmup
+
+HistoryContext:
+  per_exercise:  { exercise_name: ExerciseHistory }
+  pr_flags:      { exercise_name: bool }   # code-computed, §10 / decision 0005 — never model-computed
+
+ExerciseHistory:
+  best_e1rm:        number | null
+  best_top_set:     { weight, unit, reps } | null
+  days_since_last:  int | null          # null when never performed before
+  volume_trend:     "up" | "down" | "flat" | null   # null when < 2 data points
+```
+
+`HistoryContext` is empty (`per_exercise` and `pr_flags` both `{}`) for an exercise never seen before — [§8](06-llm-generation.md)'s "omit comparative claims" rule applies per-exercise, not to the whole call.
+
 ---
 
 ← [Index](../PLANNING.md) · Previous: [Ingest API](03-ingest-api.md) · Next: [Strava integration](05-strava-integration.md)
