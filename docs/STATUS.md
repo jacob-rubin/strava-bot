@@ -1,6 +1,6 @@
 ---
 status: living-document
-last-updated: 2026-09-11
+last-updated: 2026-09-12
 ---
 
 ← [Index](PLANNING.md) · [Task runbooks](tasks/README.md)
@@ -18,8 +18,8 @@ Status values: `not started` · `in progress` · `done` · `blocked` · `skipped
 | ID | Task | Phase — [§13](planning/10-build-order-and-client.md#13-build-order) | Executor | Status | Notes |
 | -- | ---- | ----- | -------- | ------ | ----- |
 | T01 | [Create the Strava API application](tasks/T01-strava-api-app.md) | 1 prove auth | human | not started | |
-| T02 | [Stand up the GCP project and enable APIs](tasks/T02-gcp-project.md) | 1 prove auth | human | not started | |
-| T03 | [Create the Secret Manager secrets](tasks/T03-secret-manager-secrets.md) | 1 prove auth | agent | not started | |
+| T02 | [Stand up the GCP project with Terraform](tasks/T02-gcp-project.md) | 1 prove auth | agent + human step | not started | |
+| T03 | [Create the Secret Manager secrets with Terraform](tasks/T03-secret-manager-secrets.md) | 1 prove auth | agent | not started | |
 | T04 | [Scaffold the repository skeleton](tasks/T04-repo-skeleton.md) | 1 prove auth | agent | not started | |
 | T05 | [Write `app/config.py`](tasks/T05-config-module.md) | 1 prove auth | agent | not started | |
 | T06 | [Write `scripts/authorize.py`](tasks/T06-authorize-script.md) | 1 prove auth | agent + human step | not started | |
@@ -34,8 +34,8 @@ Status values: `not started` · `in progress` · `done` · `blocked` · `skipped
 | T15 | [Write `app/strava.py`](tasks/T15-strava-client.md) | 3 ingest v1 | agent | not started | |
 | T16 | [Write `app/main.py`](tasks/T16-ingest-endpoint.md) | 3 ingest v1 | agent | not started | |
 | T17 | [Ingest and boundary tests](tasks/T17-ingest-and-boundary-tests.md) | 3 ingest v1 | agent | not started | |
-| T18 | [`Dockerfile` and a local container run](tasks/T18-dockerfile-local-run.md) | 3 ingest v1 | agent | not started | |
-| T19 | [Deploy to Cloud Run with a budget alert](tasks/T19-cloud-run-deploy.md) | 3 ingest v1 | agent | not started | |
+| T18 | [Buildpacks build and local run](tasks/T18-dockerfile-local-run.md) | 3 ingest v1 | agent | not started | |
+| T19 | [Deploy to Cloud Run via Cloud Build with a budget alert](tasks/T19-cloud-run-deploy.md) | 3 ingest v1 | agent | not started | |
 | T20 | [Probe what Strong's share sheet delivers](tasks/T20-share-sheet-probe.md) | 4 client | human | not started | resolves open item 1; no dependencies, run early |
 | T21 | [Wire the Shortcut and confirm the round trip](tasks/T21-shortcut-wiring-e2e.md) | 4 client | human | not started | needs open item 1 resolved |
 | T22 | [Replace the template with the real LLM path](tasks/T22-llm-provider.md) | 5 LLM generation | agent | not started | |

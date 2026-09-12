@@ -1,6 +1,6 @@
 ---
 status: authoritative
-last-updated: 2026-09-11
+last-updated: 2026-09-12
 ---
 
 ← [Index](../PLANNING.md) · [Status](../STATUS.md)
@@ -26,8 +26,8 @@ Task ids are stable. A task inserted later gets a suffixed id (`T13a`) rather th
 | Task | Phase — [§13](../planning/10-build-order-and-client.md#13-build-order) | Executor | Depends on |
 | ---- | ---- | -------- | ---------- |
 | [T01 — Create the Strava API application](T01-strava-api-app.md) | 1 prove auth | human | — |
-| [T02 — Stand up the GCP project and enable APIs](T02-gcp-project.md) | 1 prove auth | human | — |
-| [T03 — Create the Secret Manager secrets](T03-secret-manager-secrets.md) | 1 prove auth | agent | T01, T02 |
+| [T02 — Stand up the GCP project with Terraform](T02-gcp-project.md) | 1 prove auth | agent + human step | — |
+| [T03 — Create the Secret Manager secrets with Terraform](T03-secret-manager-secrets.md) | 1 prove auth | agent | T01, T02 |
 | [T04 — Scaffold the repository skeleton](T04-repo-skeleton.md) | 1 prove auth | agent | — |
 | [T05 — Write `app/config.py`](T05-config-module.md) | 1 prove auth | agent | T04 |
 | [T06 — Write `scripts/authorize.py`](T06-authorize-script.md) | 1 prove auth | agent + human step | T03, T05 |
@@ -42,8 +42,8 @@ Task ids are stable. A task inserted later gets a suffixed id (`T13a`) rather th
 | [T15 — Write `app/strava.py`](T15-strava-client.md) | 3 ingest v1 | agent | T05, T07 |
 | [T16 — Write `app/main.py`](T16-ingest-endpoint.md) | 3 ingest v1 | agent | T11, T13, T14, T15 |
 | [T17 — Ingest and boundary tests](T17-ingest-and-boundary-tests.md) | 3 ingest v1 | agent | T16 |
-| [T18 — `Dockerfile` and a local container run](T18-dockerfile-local-run.md) | 3 ingest v1 | agent | T16 |
-| [T19 — Deploy to Cloud Run with a budget alert](T19-cloud-run-deploy.md) | 3 ingest v1 | agent | T03, T17, T18 |
+| [T18 — Buildpacks build and local run](T18-dockerfile-local-run.md) | 3 ingest v1 | agent | T16 |
+| [T19 — Deploy to Cloud Run via Cloud Build with a budget alert](T19-cloud-run-deploy.md) | 3 ingest v1 | agent | T03, T17, T18 |
 | [T20 — Probe what Strong's share sheet delivers](T20-share-sheet-probe.md) | 4 client | human | — |
 | [T21 — Wire the Shortcut and confirm the round trip](T21-shortcut-wiring-e2e.md) | 4 client | human | T19, T20 |
 | [T22 — Replace the template with the real LLM path](T22-llm-provider.md) | 5 LLM generation | agent | T14, T19 |

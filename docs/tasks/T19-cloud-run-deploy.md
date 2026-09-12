@@ -1,11 +1,11 @@
 ---
 status: task
-last-updated: 2026-09-11
+last-updated: 2026-09-12
 ---
 
 ← [Task index](README.md) · [Status](../STATUS.md)
 
-# T19 — Deploy to Cloud Run with a budget alert
+# T19 — Deploy to Cloud Run via Cloud Build with a budget alert
 
 |            |     |
 | ---------- | --- |
@@ -16,29 +16,34 @@ last-updated: 2026-09-11
 
 ## Read first
 
-- [§5 Deployment](../planning/03-ingest-api.md#deployment) — the exact deploy command and why `--allow-unauthenticated` is required
+- [§5 Deployment](../planning/03-ingest-api.md#deployment) — the Cloud Build pipeline (buildpacks) and the non-negotiable Cloud Run settings
+- [ADR 0007](../decisions/0007-terraform-for-gcp-infra.md) — Cloud Run is deployed by Cloud Build; Terraform declares everything else
 - [Constraint 13](../CONSTRAINTS.md) — `--max-instances=3` is a cost control and must be paired with a billing budget alert
 
 ## Deliverable
 
-No repo change beyond a recorded service URL. In GCP: a deployed Cloud Run service and a billing budget alert.
+A `terraform/` change that adds the `google_cloudbuild_trigger` (buildpacks build + Cloud Run deploy) and `google_billing_budget` on top of the resources applied in [T02](T02-gcp-project.md) and [T03](T03-secret-manager-secrets.md), plus a recorded service URL. The Cloud Run service itself is created by the pipeline, not as a Terraform resource.
 
 ## Steps
 
-1. Deploy with the command in [§5 Deployment](../planning/03-ingest-api.md#deployment), unchanged — the flags are cost controls, not tuning knobs.
-2. Bind every Secret-Manager-sourced variable from [§9](../planning/07-config-and-repo-layout.md#9-configuration), not only the three shown inline in the example.
-3. Create a GCP billing budget with an alert threshold before sharing the URL anywhere ([Constraint 13](../CONSTRAINTS.md)).
-4. Record the service URL and the `path_token` form of the ingest URL for [T21](T21-shortcut-wiring-e2e.md). Do not paste the key or token into the repo.
+1. Add the `google_cloudbuild_trigger` from [§5 Deployment](../planning/03-ingest-api.md#deployment), unchanged — it builds with Google's native buildpacks (no `Dockerfile`) and deploys Cloud Run with the settings in [§5](../planning/03-ingest-api.md#deployment), which are cost controls, not tuning knobs.
+2. Ensure the deploy step binds every Secret-Manager-sourced variable from [§9](../planning/07-config-and-repo-layout.md#9-configuration), not only the three shown inline in the example.
+3. Add a `google_billing_budget` with an alert threshold before sharing the URL anywhere ([Constraint 13](../CONSTRAINTS.md)).
+4. `terraform apply`, run the trigger (push to the configured branch, or the Console "Run" button), then `terraform apply` again to refresh the `service_url` data source. Record the service URL and the `path_token` form of the ingest URL for [T21](T21-shortcut-wiring-e2e.md). Do not paste the key or token into the repo.
 
 ## Done when
 
 ```bash
-gcloud run services describe strava-bot --format="value(status.url,spec.template.spec.containerConcurrency)"
-curl -s "$(gcloud run services describe strava-bot --format='value(status.url)')/healthz"
-gcloud billing budgets list --billing-account=<ACCOUNT_ID>
+cd terraform
+terraform apply
+terraform state list
+# run the trigger (push to the configured branch, or the Console "Run" button), then:
+terraform apply
+terraform output -raw service_url
+curl -s "$(terraform output -raw service_url)/healthz"
 ```
 
-`/healthz` returns `ok` over HTTPS, max instances reads 3, and at least one budget is listed.
+`terraform state list` shows the `google_cloudbuild_trigger` and the `google_billing_budget`; after the trigger runs, `terraform output -raw service_url` is non-empty and `/healthz` returns `ok` over HTTPS.
 
 ## On completion
 

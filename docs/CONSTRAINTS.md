@@ -1,6 +1,6 @@
 ---
 status: authoritative
-last-updated: 2026-09-10
+last-updated: 2026-09-12
 ---
 
 ← [Index](PLANNING.md)
@@ -33,7 +33,7 @@ Every rule here is called out as mandatory somewhere in [PLANNING.md](PLANNING.m
 
 12. **No background retry queue.** Retries are the user's job — tapping Share again is idempotent by construction (dedupe key + content-hash guard). Don't build automatic retry infrastructure. → [Error handling §11](planning/08-error-handling.md)
 
-13. **`max_instance_count = 3` is a cost control, not a performance setting**, because the endpoint is public and invokes a paid model. Pair any deployment change with a GCP billing budget alert, not just this setting. → [Ingest API — Deployment](planning/03-ingest-api.md#deployment)
+13. **`--max-instances=3` (in the Cloud Build deploy step) is a cost control, not a performance setting**, because the endpoint is public and invokes a paid model. Pair any deployment change with a GCP billing budget alert, not just this flag. → [Ingest API — Deployment](planning/03-ingest-api.md#deployment)
 
 14. **Out of scope, don't build toward it "for later":** image upload/generation (Strava's API has no media endpoint), HealthKit ingest, reading any data back from Strava, multi-user support, a native iOS app or Share Extension. → [Purpose §1](planning/01-purpose-and-prerequisites.md)
 

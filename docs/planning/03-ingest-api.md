@@ -1,6 +1,6 @@
 ---
 status: authoritative
-last-updated: 2026-09-10
+last-updated: 2026-09-12
 ---
 
 ← [Index](../PLANNING.md)
@@ -50,21 +50,57 @@ Returns 200 `ok`. Unauthenticated. No dependency checks.
 
 ### Deployment
 
-```bash
-gcloud run deploy strava-bot \
-  --allow-unauthenticated \
-  --max-instances=3 \
-  --concurrency=4 \
-  --memory=512Mi \
-  --timeout=120 \
-  --set-secrets=INGEST_KEY=strava-bot-ingest-key:latest,\
-INGEST_PATH_TOKEN=strava-bot-path-token:latest,\
-STRAVA_CLIENT_SECRET=strava-client-secret:latest
+Terraform declares everything except the Cloud Run service itself, and the `gcloud` CLI is never run on the developer's machine to create or update resources ([ADR 0007](../decisions/0007-terraform-for-gcp-infra.md)). The Cloud Run service is deployed by a Cloud Build pipeline that Terraform declares as a `google_cloudbuild_trigger`:
+
+```hcl
+resource "google_cloudbuild_trigger" "deploy" {
+  name     = "strava-bot-deploy"
+  location = "global"
+
+  # Wire source_to_build to the repo (push trigger) so buildpacks build the app source.
+
+  build {
+    step {
+      name = "gcr.io/k8s-skaffold/pack"
+      args = [
+        "build",
+        "${var.region}-docker.pkg.dev/${var.project_id}/strava-bot/strava-bot",
+        "--builder", "gcr.io/buildpacks/builder",
+      ]
+    }
+    step {
+      name       = "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
+      entrypoint = "gcloud"
+      args = [
+        "run", "deploy", "strava-bot",
+        "--image", "${var.region}-docker.pkg.dev/${var.project_id}/strava-bot/strava-bot:latest",
+        "--region", var.region,
+        "--allow-unauthenticated",
+        "--max-instances", "3",
+        "--concurrency", "4",
+        "--memory", "512Mi",
+        "--timeout", "120",
+        "--set-secrets", "INGEST_KEY=strava-bot-ingest-key:latest,INGEST_PATH_TOKEN=strava-bot-path-token:latest,STRAVA_CLIENT_SECRET=strava-client-secret:latest",
+      ]
+    }
+  }
+}
+
+data "google_cloud_run_service" "strava_bot" {
+  name     = "strava-bot"
+  location = var.region
+}
+
+output "service_url" {
+  value = data.google_cloud_run_service.strava_bot.status[0].url
+}
 ```
+
+The first step builds with **Google's native buildpacks** (`gcr.io/buildpacks/builder`) — no Dockerfile. The second step is the only place `gcloud` appears, and only inside Cloud Build; it deploys Cloud Run with the non-negotiable settings. Because Cloud Build owns the service, Terraform reads the deployed URL back through the `data` source rather than declaring the service.
 
 `--allow-unauthenticated` disables Google's IAM check, not the application's. It is required: the Shortcut cannot mint an OIDC token.
 
-**`--max-instances=3` is a cost control, not a performance setting.** The endpoint is public and invokes a paid model. Also configure a GCP billing budget alert.
+**`--max-instances=3` is a cost control, not a performance setting.** The endpoint is public and invokes a paid model. Configure the billing budget alert in the same Terraform config with `google_billing_budget`.
 
 ---
 
