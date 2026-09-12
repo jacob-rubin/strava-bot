@@ -95,9 +95,13 @@ elapsed = received_at - started_at        if 0 < delta <= 14400
 
 ---
 
-## 4. Reference implementation
+## 4. Parser module
 
-`strong_share_parser.py` (already written, validated against the fixture above and against warmup, bodyweight, assisted, timed, and distance variants) is the normative parser. Use it as-is or port it faithfully; [§12](09-acceptance-criteria.md) test cases are written against its output.
+`app/parser.py` implements this section: §3's grammar, its nine parsing rules, and every set-payload variant, producing the structures in [§6](04-persistence.md#data-model-for-generate). It is built from this spec — there is no pre-existing implementation to port.
+
+The normative definition of correct is [§12](09-acceptance-criteria.md#12-acceptance-criteria), whose parser and variant bullets cover warmup, bodyweight, assisted, timed, and distance payloads. If a §12 expectation turns out to be wrong, correct the spec deliberately rather than relaxing the test.
+
+Build it via [T10](../tasks/T10-parser-core.md) and [T11](../tasks/T11-parser-derived-values.md).
 
 ---
 
