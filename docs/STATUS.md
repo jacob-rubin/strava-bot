@@ -18,7 +18,7 @@ Status values: `not started` · `in progress` · `done` · `blocked` · `skipped
 | ID | Task | Phase — [§13](planning/10-build-order-and-client.md#13-build-order) | Executor | Status | Notes |
 | -- | ---- | ----- | -------- | ------ | ----- |
 | T01 | [Create the Strava API application](tasks/T01-strava-api-app.md) | 1 prove auth | human | done | `client_id` 278290; secret in a git-ignored `.env` pending T03. Added `.gitignore` (T04's deliverable) early to cover it |
-| T02 | [Stand up the GCP project with Terraform](tasks/T02-gcp-project.md) | 1 prove auth | agent + human step | not started | |
+| T02 | [Stand up the GCP project with Terraform](tasks/T02-gcp-project.md) | 1 prove auth | agent + human step | in progress | |
 | T03 | [Create the Secret Manager secrets with Terraform](tasks/T03-secret-manager-secrets.md) | 1 prove auth | agent | not started | |
 | T04 | [Scaffold the repository skeleton](tasks/T04-repo-skeleton.md) | 1 prove auth | agent | not started | |
 | T05 | [Write `app/config.py`](tasks/T05-config-module.md) | 1 prove auth | agent | not started | |
