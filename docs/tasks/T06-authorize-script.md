@@ -1,0 +1,51 @@
+---
+status: task
+last-updated: 2026-09-11
+---
+
+← [Task index](README.md) · [Status](../STATUS.md)
+
+# T06 — Write `scripts/authorize.py` and obtain the refresh token
+
+|            |     |
+| ---------- | --- |
+| Phase      | [§13 step 1](../planning/10-build-order-and-client.md#13-build-order) — prove auth |
+| Depends on | [T03](T03-secret-manager-secrets.md), [T05](T05-config-module.md) |
+| Executor   | agent (one human browser step) |
+| Blocked by | — |
+
+## Read first
+
+- [§7.2 One-time authorization](../planning/05-strava-integration.md#72-one-time-authorization--v) — the authorize URL, the scope, and the exchange call
+- [Constraint 2](../CONSTRAINTS.md) — `activity:write` only, no read scope
+- [ADR 0002](../decisions/0002-no-strava-read-scope.md)
+
+## Deliverable
+
+- `scripts/authorize.py` — prints the authorize URL, accepts the redirect `code`, performs the exchange, and writes the resulting `refresh_token` as a new Secret Manager version
+- A populated `STRAVA_REFRESH_TOKEN` secret version
+
+## Steps
+
+1. Build the authorize URL exactly as specified in [§7.2](../planning/05-strava-integration.md#72-one-time-authorization--v), with `scope=activity:write` and nothing else. Requesting any read scope violates [Constraint 2](../CONSTRAINTS.md).
+2. **Human step:** open the printed URL, approve, and paste back the `code` from the `localhost` redirect (the redirect will fail to load — only the query string matters).
+3. Exchange the code per [§7.2](../planning/05-strava-integration.md#72-one-time-authorization--v) and write `refresh_token` to Secret Manager via the [T05](T05-config-module.md) helper. Print nothing but a success line — no token values.
+4. Keep this out of `app/`: [§7.2](../planning/05-strava-integration.md#72-one-time-authorization--v) specifies it is a local script, not part of the service.
+
+## Done when
+
+```bash
+python scripts/authorize.py
+gcloud secrets versions list strava-refresh-token --limit=1
+```
+
+The script exits 0 without printing a token, and the secret has a new `enabled` version created just now.
+
+## On completion
+
+Flip `T06` to `done` in [STATUS.md](../STATUS.md), add a one-line note there if the work deviated from the spec, and bump that file's `last-updated`.
+
+---
+
+← [Task index](README.md) · [Status](../STATUS.md)
+
