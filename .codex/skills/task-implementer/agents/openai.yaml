@@ -1,0 +1,4 @@
+interface:
+  display_name: "Task Implementer"
+  short_description: "Run one strava-bot task end to end"
+  default_prompt: "Use $task-implementer to implement the next task in docs/tasks."
