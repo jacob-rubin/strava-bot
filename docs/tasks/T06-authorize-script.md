@@ -1,6 +1,6 @@
 ---
 status: task
-last-updated: 2026-09-11
+last-updated: 2026-09-12
 ---
 
 ← [Task index](README.md) · [Status](../STATUS.md)
@@ -36,10 +36,9 @@ last-updated: 2026-09-11
 
 ```bash
 python scripts/authorize.py
-gcloud secrets versions list strava-refresh-token --limit=1
 ```
 
-The script exits 0 without printing a token, and the secret has a new `enabled` version created just now.
+The script exits 0 without printing a token, and the `STRAVA_REFRESH_TOKEN` secret now has a new `enabled` version created just now — the script's own success line confirms the write-back.
 
 ## On completion
 

@@ -1,6 +1,6 @@
 ---
 status: authoritative
-last-updated: 2026-09-10
+last-updated: 2026-09-12
 ---
 
 ← [Index](../PLANNING.md)
@@ -45,9 +45,14 @@ strava-bot/
     test_parser.py
     test_ingest.py
     test_boundaries.py      # import-boundary enforcement
-  Dockerfile
+  terraform/
+    main.tf                 # project, APIs, Firestore, secrets, IAM, Cloud Build trigger, budget (§5, ADR 0007)
+    variables.tf
+    outputs.tf
   pyproject.toml
 ```
+
+No `Dockerfile` — the Cloud Build pipeline builds with Google's native buildpacks ([§5](03-ingest-api.md#deployment)).
 
 Python 3.12, FastAPI, `google-cloud-firestore`, `google-cloud-secret-manager`, `httpx`. No ORM.
 
