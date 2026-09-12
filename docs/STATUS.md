@@ -17,7 +17,7 @@ Status values: `not started` · `in progress` · `done` · `blocked` · `skipped
 
 | ID | Task | Phase — [§13](planning/10-build-order-and-client.md#13-build-order) | Executor | Status | Notes |
 | -- | ---- | ----- | -------- | ------ | ----- |
-| T01 | [Create the Strava API application](tasks/T01-strava-api-app.md) | 1 prove auth | human | not started | |
+| T01 | [Create the Strava API application](tasks/T01-strava-api-app.md) | 1 prove auth | human | in progress | |
 | T02 | [Stand up the GCP project with Terraform](tasks/T02-gcp-project.md) | 1 prove auth | agent + human step | not started | |
 | T03 | [Create the Secret Manager secrets with Terraform](tasks/T03-secret-manager-secrets.md) | 1 prove auth | agent | not started | |
 | T04 | [Scaffold the repository skeleton](tasks/T04-repo-skeleton.md) | 1 prove auth | agent | not started | |
