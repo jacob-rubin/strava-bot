@@ -9,7 +9,7 @@ supersedes: [feasibility-and-architecture.md, ingest-path-design.md, share-sheet
 **Status:** authoritative. Supersedes `feasibility-and-architecture.md`, `ingest-path-design.md`, `share-sheet-ingest.md`, and `workflow-spec.md` in this project.
 **Last updated:** 2026-09-11
 
-See also: [CONSTRAINTS.md](CONSTRAINTS.md) (non-negotiable rules, read before editing `app/`), [STATUS.md](STATUS.md) (build progress), [decisions/](decisions/) (why, not just what), [glossary.md](glossary.md) (domain terms).
+See also: [CONSTRAINTS.md](CONSTRAINTS.md) (non-negotiable rules, read before editing `app/`), [tasks/](tasks/README.md) (executable task runbooks), [STATUS.md](STATUS.md) (per-task progress), [decisions/](decisions/) (why, not just what), [glossary.md](glossary.md) (domain terms).
 
 Every Strava API claim in this spec is tagged:
 
@@ -31,7 +31,8 @@ Start from the row matching what you're doing instead of the whole spec.
 | LLM title/description | [§8](planning/06-llm-generation.md), [ADR 0005](decisions/0005-pr-detection-in-code.md) |
 | Error handling + logging | [§11](planning/08-error-handling.md), [ADR 0006](decisions/0006-no-retry-queue.md) |
 | Config, secrets, repo layout | [§9](planning/07-config-and-repo-layout.md) |
-| What to build next | [STATUS.md](STATUS.md), [§13](planning/10-build-order-and-client.md) |
+| What to build next | [STATUS.md](STATUS.md), [tasks/](tasks/README.md), [§13](planning/10-build-order-and-client.md) |
+| Executing one step | the matching runbook in [tasks/](tasks/README.md) |
 
 Always: [CONSTRAINTS.md](CONSTRAINTS.md) before editing `app/`; [glossary.md](glossary.md) for domain terms.
 
@@ -48,3 +49,7 @@ Always: [CONSTRAINTS.md](CONSTRAINTS.md) before editing `app/`; [glossary.md](gl
 9. [Acceptance criteria](planning/09-acceptance-criteria.md) — parser, ingest, boundary, and end-to-end test expectations.
 10. [Build order and client](planning/10-build-order-and-client.md) — the 7-step build sequence and the iOS Shortcut setup.
 11. [Open items and sources](planning/11-open-items-and-sources.md) — unresolved `[U]` items and how to resolve each, plus the source documents this spec was verified against.
+
+## Execution
+
+[tasks/](tasks/README.md) decomposes the [§13](planning/10-build-order-and-client.md#13-build-order) build order into ~27 atomic task runbooks — one file per task, each naming what to read, what to produce, and a check that proves it done. The runbooks link into this spec rather than restating it. [STATUS.md](STATUS.md) is the single source of truth for which tasks are done.
