@@ -7,7 +7,7 @@ last-updated: 2026-09-12
 
 # Build status
 
-**Current focus:** [T01 — Create the Strava API application](tasks/T01-strava-api-app.md). Nothing in `app/`, `scripts/`, or `tests/` exists yet — this repo currently holds only the spec in `docs/`.
+**Current focus:** [T02 — Stand up the GCP project with Terraform](tasks/T02-gcp-project.md). Nothing in `app/`, `scripts/`, or `tests/` exists yet — the repo holds the spec in `docs/` plus the `.gitignore` landed early by T01.
 
 This file is the **single source of truth for task status**. Task runbooks in [tasks/](tasks/README.md) are static; they carry no status of their own. Unlike the rest of `docs/`, this file is expected to change every work session — update it as tasks complete instead of inferring progress from the code or git log.
 
@@ -17,7 +17,7 @@ Status values: `not started` · `in progress` · `done` · `blocked` · `skipped
 
 | ID | Task | Phase — [§13](planning/10-build-order-and-client.md#13-build-order) | Executor | Status | Notes |
 | -- | ---- | ----- | -------- | ------ | ----- |
-| T01 | [Create the Strava API application](tasks/T01-strava-api-app.md) | 1 prove auth | human | in progress | |
+| T01 | [Create the Strava API application](tasks/T01-strava-api-app.md) | 1 prove auth | human | done | `client_id` 278290; secret in a git-ignored `.env` pending T03. Added `.gitignore` (T04's deliverable) early to cover it |
 | T02 | [Stand up the GCP project with Terraform](tasks/T02-gcp-project.md) | 1 prove auth | agent + human step | not started | |
 | T03 | [Create the Secret Manager secrets with Terraform](tasks/T03-secret-manager-secrets.md) | 1 prove auth | agent | not started | |
 | T04 | [Scaffold the repository skeleton](tasks/T04-repo-skeleton.md) | 1 prove auth | agent | not started | |
