@@ -1,0 +1,6 @@
+# Local credential files. The deployed service reads these values from
+# Secret Manager (docs/planning/07-config-and-repo-layout.md, section 9);
+# a local .env exists only for scripts run by hand.
+.env
+.env.*
+!.env.example
