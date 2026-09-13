@@ -1,6 +1,6 @@
 ---
 status: authoritative
-last-updated: 2026-09-12
+last-updated: 2026-09-13
 supersedes: [feasibility-and-architecture.md, ingest-path-design.md, share-sheet-ingest.md, workflow-spec.md]
 ---
 
@@ -10,6 +10,8 @@ supersedes: [feasibility-and-architecture.md, ingest-path-design.md, share-sheet
 **Last updated:** 2026-09-12
 
 See also: [CONSTRAINTS.md](CONSTRAINTS.md) (non-negotiable rules, read before editing `app/`), [tasks/](tasks/README.md) (executable task runbooks), [STATUS.md](STATUS.md) (per-task progress), [decisions/](decisions/) (why, not just what), [glossary.md](glossary.md) (domain terms).
+
+The implementation target is strict TypeScript on Node.js 24 LTS ([ADR 0008](decisions/0008-typescript-node-runtime.md)).
 
 Every Strava API claim in this spec is tagged:
 

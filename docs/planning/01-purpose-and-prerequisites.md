@@ -1,6 +1,6 @@
 ---
 status: authoritative
-last-updated: 2026-09-12
+last-updated: 2026-09-13
 ---
 
 ← [Index](../PLANNING.md)
@@ -49,6 +49,7 @@ Strong (iOS) → Share Workout (plain text)
 | Strava API application     | **[V]** Create at `https://www.strava.com/settings/api`. Yields `client_id`, `client_secret`. Set Authorization Callback Domain to `localhost` for the one-time auth. |
 | GCP project                | Cloud Run (deployed by Cloud Build), Secret Manager, Firestore (native mode) — infrastructure declared in Terraform.                                                  |
 | Terraform CLI              | Google provider; config lives in `terraform/` and is applied with `terraform apply` ([ADR 0007](../decisions/0007-terraform-for-gcp-infra.md)).                    |
+| Node.js 24 LTS + npm       | Service, scripts, and tests are strict TypeScript; use the version declared by `package.json` ([ADR 0008](../decisions/0008-typescript-node-runtime.md)).            |
 | LLM API access             | Any provider. Isolated behind an interface ([§8](06-llm-generation.md)).                                                                                              |
 
 ---

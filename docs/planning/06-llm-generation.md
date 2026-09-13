@@ -1,6 +1,6 @@
 ---
 status: authoritative
-last-updated: 2026-09-10
+last-updated: 2026-09-13
 ---
 
 ← [Index](../PLANNING.md)
@@ -9,8 +9,13 @@ last-updated: 2026-09-10
 
 **Interface.** One function, one provider-agnostic abstraction:
 
-```python
-def generate(summary: WorkoutSummary, context: HistoryContext) -> tuple[str, str]
+```typescript
+export type GeneratedText = { title: string; description: string };
+
+export declare function generate(
+  summary: WorkoutSummary,
+  context: HistoryContext,
+): Promise<GeneratedText>;
 ```
 
 `WorkoutSummary` and `HistoryContext` are defined in [Persistence — Data model for `generate()`](04-persistence.md#data-model-for-generate).

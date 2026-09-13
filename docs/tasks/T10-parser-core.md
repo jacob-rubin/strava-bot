@@ -1,11 +1,11 @@
 ---
 status: task
-last-updated: 2026-09-11
+last-updated: 2026-09-13
 ---
 
 ← [Task index](README.md) · [Status](../STATUS.md)
 
-# T10 — Write `app/parser.py` — grammar and set variants
+# T10 — Write `app/parser.ts` — grammar and set variants
 
 |            |     |
 | ---------- | --- |
@@ -23,7 +23,7 @@ last-updated: 2026-09-11
 
 ## Deliverable
 
-- `app/parser.py` — text in, [T08](T08-models-module.md) `Workout` out; structure only, no derived totals (those are [T11](T11-parser-derived-values.md))
+- `app/parser.ts` — text in, [T08](T08-models-module.md) `Workout` out; structure only, no derived totals (those are [T11](T11-parser-derived-values.md))
 
 ## Steps
 
@@ -36,7 +36,7 @@ last-updated: 2026-09-11
 ## Done when
 
 ```bash
-pytest tests/test_parser.py -k "grammar or variant" 
+npm test -- tests/test_parser.ts -t "grammar|variant"
 ```
 
 Every fixture from [T09](T09-fixtures.md) parses without raising, and the canonical fixture yields 4 exercises with the share slug captured. (Full [§12](../planning/09-acceptance-criteria.md#12-acceptance-criteria) coverage is [T12](T12-parser-tests.md).)

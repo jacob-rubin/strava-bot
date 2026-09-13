@@ -1,6 +1,6 @@
 ---
 status: authoritative
-last-updated: 2026-09-10
+last-updated: 2026-09-13
 ---
 
 ← [Index](../PLANNING.md)
@@ -11,15 +11,15 @@ last-updated: 2026-09-10
 
 - 4 exercises; 12 working sets; 105 total reps; total volume 19,650 lb.
 - `Deadlift (Barbell)` → base `Deadlift`, equipment `Barbell`, top set `315 lb × 4`, volume 3,780.
-- `Hack Squat` → equipment `None`.
-- `Calf Press on Leg Press` → base name unchanged, equipment `None` (no parenthetical).
-- `dedupe_key == "strong:k3m8q2xz"`.
-- `started_at == 2026-09-09T06:43:00` (naive).
+- `Hack Squat` → equipment `null`.
+- `Calf Press on Leg Press` → base name unchanged, equipment `null` (no parenthetical).
+- `dedupe_key === "strong:k3m8q2xz"`.
+- `started_at === "2026-09-09T06:43:00"` (naive).
 
 **Parser — variants:**
 
-- `Set W: 135 lb × 8` → `is_warmup=True`, excluded from all totals.
-- `Set 1: 12 reps` → `kind="reps"`, `weight=None`.
+- `Set W: 135 lb × 8` → `is_warmup=true`, excluded from all totals.
+- `Set 1: 12 reps` → `kind="reps"`, `weight=null`.
 - `Set 2: +25 lb × 8` → `weight=+25`; `Set 3: -40 lb × 10` → `weight=-40`.
 - `Set 1: 1:30` → `duration_s=90`.
 - `Set 1: 0.25 mi in 3:10` → `distance=0.25`, `distance_unit="mi"`, `duration_s=190`.
@@ -39,8 +39,8 @@ last-updated: 2026-09-10
 
 **Boundaries:**
 
-- `tests/test_boundaries.py` asserts `app.llm` has no transitive import of `app.strava`.
-- Grep-style assertion: no `strava` response object is referenced within `app/llm.py`.
+- `tests/test_boundaries.ts` asserts `app/llm.ts` has no transitive import path to `app/strava.ts`.
+- Grep-style assertion: no Strava response object is referenced within `app/llm.ts`.
 
 **End-to-end (manual, once):**
 

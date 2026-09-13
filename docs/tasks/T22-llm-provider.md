@@ -1,6 +1,6 @@
 ---
 status: task
-last-updated: 2026-09-11
+last-updated: 2026-09-13
 ---
 
 ← [Task index](README.md) · [Status](../STATUS.md)
@@ -22,8 +22,8 @@ last-updated: 2026-09-11
 
 ## Deliverable
 
-- `app/llm.py` — provider call behind the unchanged `generate()` signature, with the [T14](T14-llm-fallback-template.md) template retained as the fallback
-- `tests/test_llm.py` — extended for timeout and error fallback
+- `app/llm.ts` — provider call behind the unchanged `generate()` signature, with the [T14](T14-llm-fallback-template.md) template retained as the fallback
+- `tests/test_llm.ts` — extended for timeout and error fallback
 
 ## Steps
 
@@ -36,7 +36,7 @@ last-updated: 2026-09-11
 ## Done when
 
 ```bash
-pytest tests/test_llm.py tests/test_boundaries.py
+npm test -- tests/test_llm.ts tests/test_boundaries.ts
 ```
 
 Passes, including a test where the provider raises and one where it exceeds 10s — both yield the template output — plus the unchanged import-boundary assertions.

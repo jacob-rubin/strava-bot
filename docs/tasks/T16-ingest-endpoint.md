@@ -1,11 +1,11 @@
 ---
 status: task
-last-updated: 2026-09-11
+last-updated: 2026-09-13
 ---
 
 ← [Task index](README.md) · [Status](../STATUS.md)
 
-# T16 — Write `app/main.py` — routes and processing order
+# T16 — Write `app/main.ts` — routes and processing order
 
 |            |     |
 | ---------- | --- |
@@ -23,23 +23,25 @@ last-updated: 2026-09-11
 
 ## Deliverable
 
-- `app/main.py` — `POST /ingest/{path_token}` and `GET /healthz`, wiring [T11](T11-parser-derived-values.md), [T13](T13-store-workouts.md), [T14](T14-llm-fallback-template.md), and [T15](T15-strava-client.md)
+- `app/main.ts` — Fastify server with `POST /ingest/{path_token}` and `GET /healthz`, wiring [T11](T11-parser-derived-values.md), [T13](T13-store-workouts.md), [T14](T14-llm-fallback-template.md), and [T15](T15-strava-client.md)
 
 ## Steps
 
-1. Implement auth exactly as [§5](../planning/03-ingest-api.md#5-ingest-api) specifies: `hmac.compare_digest` on both the path token and the header, one indistinguishable 404 with an empty body, nothing logged about the supplied values ([Constraint 3](../CONSTRAINTS.md)).
+1. Implement auth exactly as [§5](../planning/03-ingest-api.md#5-ingest-api) specifies: SHA-256 each supplied and expected value, compare the fixed-length digests with `crypto.timingSafeEqual`, return one indistinguishable 404 with an empty body, and log nothing about the supplied values ([Constraint 3](../CONSTRAINTS.md)).
 2. Implement the eight processing steps of [§5](../planning/03-ingest-api.md#5-ingest-api) in order, with the size cap rejecting before the body is read ([Constraint 4](../CONSTRAINTS.md)).
 3. Accept both `text/plain` and `{"text": "..."}` JSON bodies per [§5](../planning/03-ingest-api.md#5-ingest-api).
 4. Wrap the [T14](T14-llm-fallback-template.md) call so any error or a 10s timeout falls back to the template and still posts ([Constraint 9](../CONSTRAINTS.md)).
 5. Return exactly the status/body pairs in the [§5](../planning/03-ingest-api.md#5-ingest-api) response table — one plain-text line, ≤200 chars.
 6. Emit the single structured log line from [§11](../planning/08-error-handling.md#11-error-handling) per request, with no `raw_text` and no secrets.
 7. Add `GET /healthz` returning `ok`, unauthenticated, with no dependency checks.
+8. Export a Fastify app factory for `app.inject()` tests, and start the listener only when `app/main.ts` is the process entrypoint.
 
 ## Done when
 
 ```bash
-pytest tests/test_ingest.py -k "order or healthz"
-uvicorn app.main:app --port 8080 &
+npm test -- tests/test_ingest.ts -t "order|healthz"
+npm run build
+PORT=8080 npm start &
 curl -s -o /dev/null -w "%{http_code}" localhost:8080/healthz
 ```
 
