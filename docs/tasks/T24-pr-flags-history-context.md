@@ -1,6 +1,6 @@
 ---
 status: task
-last-updated: 2026-09-11
+last-updated: 2026-09-13
 ---
 
 ← [Task index](README.md) · [Status](../STATUS.md)
@@ -34,7 +34,7 @@ last-updated: 2026-09-11
 ## Done when
 
 ```bash
-pytest tests/test_llm.py tests/test_ingest.py -k "history or pr"
+npm test -- tests/test_llm.ts tests/test_ingest.ts -t "history|pr"
 ```
 
 Passes, covering a true PR setting the flag, a near-miss not setting it, a first-ever exercise producing an empty context with no comparative language in the output, and a `volume_trend` of null with one data point.

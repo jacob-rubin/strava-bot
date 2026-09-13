@@ -1,6 +1,6 @@
 # AGENTS.md
 
-This repo is spec-first: `app/`, `scripts/`, and `tests/` don't exist yet (see [docs/STATUS.md](docs/STATUS.md)). The full implementation spec lives under [docs/](docs/), split into small files for progressive disclosure — read only the section relevant to the task at hand, not the whole tree.
+This repo is spec-first: `app/`, `scripts/`, and `tests/` don't exist yet (see [docs/STATUS.md](docs/STATUS.md)). The implementation target is TypeScript on Node.js 24 LTS. The full implementation spec lives under [docs/](docs/), split into small files for progressive disclosure — read only the section relevant to the task at hand, not the whole tree.
 
 ## Start here
 
@@ -14,5 +14,6 @@ This repo is spec-first: `app/`, `scripts/`, and `tests/` don't exist yet (see [
 ## Working in this repo
 
 - Claims about the Strava API in the spec are tagged `[V]` (verified against Strava's docs) or `[U]` (unverified/contradicted). Never build a required path on a `[U]` claim — probe it at runtime and fall back.
+- Use strict TypeScript throughout `app/`, `scripts/`, and `tests/`; do not introduce Python tooling or implementations. Keep persisted Firestore field names in the snake_case forms defined by the spec.
 - Update [docs/STATUS.md](docs/STATUS.md) as tasks complete or open items resolve; it's expected to change every session, unlike the rest of `docs/`. Task runbooks themselves are static — never record status inside them.
 - If a change would violate a rule in [docs/CONSTRAINTS.md](docs/CONSTRAINTS.md), stop and re-read the linked spec section rather than routing around it.

@@ -1,6 +1,6 @@
 ---
 status: authoritative
-last-updated: 2026-09-11
+last-updated: 2026-09-13
 ---
 
 ← [Index](PLANNING.md)
@@ -9,7 +9,7 @@ last-updated: 2026-09-11
 
 Domain terms used across the spec, each pointing at its defining section. Read the linked section for the authoritative definition; this file is a pointer, not a replacement.
 
-- **dedupe_key** — the Firestore document id for a workout: `strong:{slug}` when a share link is present, otherwise `sha256:{hex[:32]}` of `started_at` + exercise names/set counts. → [§6](planning/04-persistence.md)
+- **dedupe_key** — the Firestore document id for a workout: `strong:{slug}` when a share link is present, otherwise `sha256:{first 32 hex characters}` of `started_at` + exercise names/set counts. → [§6](planning/04-persistence.md)
 - **content_hash** — a hash of `started_at` + exercise names and set counts, stored alongside `dedupe_key` so dedup stays correct even if the share slug is unstable. → [§6](planning/04-persistence.md), [ADR 0003](decisions/0003-content-hash-dedupe-guard.md)
 - **raw_text** — the verbatim Strong share text, always persisted so history can be re-parsed after parser fixes. → [§3](planning/02-input-contract.md), [§6](planning/04-persistence.md)
 - **working set** — a non-warmup set; the only sets counted in volume, rep, and set totals. → [§3](planning/02-input-contract.md)

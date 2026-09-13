@@ -7,7 +7,7 @@ last-updated: 2026-09-13
 
 # Build status
 
-**Current focus:** [T04 — Scaffold the repository skeleton](tasks/T04-repo-skeleton.md). Nothing in `app/`, `scripts/`, or `tests/` exists yet; `terraform/` holds the applied GCP infrastructure, including the Secret Manager secrets and their versions, and the `.gitignore` landed early by T01.
+**Current focus:** [T04 — Scaffold the TypeScript repository skeleton](tasks/T04-repo-skeleton.md). Nothing in `app/`, `scripts/`, or `tests/` exists yet; `terraform/` holds the applied GCP infrastructure, including the Secret Manager secrets and their versions, and the `.gitignore` landed early by T01.
 
 This file is the **single source of truth for task status**. Task runbooks in [tasks/](tasks/README.md) are static; they carry no status of their own. Unlike the rest of `docs/`, this file is expected to change every work session — update it as tasks complete instead of inferring progress from the code or git log.
 
@@ -20,19 +20,19 @@ Status values: `not started` · `in progress` · `done` · `blocked` · `skipped
 | T01 | [Create the Strava API application](tasks/T01-strava-api-app.md) | 1 prove auth | human | done | `client_id` 278290; secret in a git-ignored `.env` pending T03. Added `.gitignore` (T04's deliverable) early to cover it |
 | T02 | [Stand up the GCP project with Terraform](tasks/T02-gcp-project.md) | 1 prove auth | agent + human step | done | Project `strava-bot-508419` (`us-central1`), imported rather than created — it already existed. State is remote in `gs://strava-bot-508419-tfstate`, the one resource made with `gcloud` ([ADR 0007](decisions/0007-terraform-for-gcp-infra.md) amended). T19's budget landed early; `storage`/`cloudbilling`/`billingbudgets`/`cloudresourcemanager` enabled beyond the runbook's five APIs |
 | T03 | [Create the Secret Manager secrets with Terraform](tasks/T03-secret-manager-secrets.md) | 1 prove auth | agent | done | Secret resources and IAM landed early in T02, so this added the versions: `INGEST_KEY`/`INGEST_PATH_TOKEN` from `random_password` (43 URL-safe chars, ~256 bits), `STRAVA_CLIENT_SECRET` from `TF_VAR_strava_client_secret`. Deviation: `llm-api-key` left empty at the user's request — no provider chosen yet, so its first version waits for [T22](tasks/T22-llm-provider.md), like the refresh token waits for T06 |
-| T04 | [Scaffold the repository skeleton](tasks/T04-repo-skeleton.md) | 1 prove auth | agent | not started | |
-| T05 | [Write `app/config.py`](tasks/T05-config-module.md) | 1 prove auth | agent | not started | |
-| T06 | [Write `scripts/authorize.py`](tasks/T06-authorize-script.md) | 1 prove auth | agent + human step | not started | |
+| T04 | [Scaffold the TypeScript repository skeleton](tasks/T04-repo-skeleton.md) | 1 prove auth | agent | in progress | Language target changed before implementation; T04 now scaffolds Node.js 24 LTS + strict TypeScript ([ADR 0008](decisions/0008-typescript-node-runtime.md)) |
+| T05 | [Write `app/config.ts`](tasks/T05-config-module.md) | 1 prove auth | agent | not started | |
+| T06 | [Write `scripts/authorize.ts`](tasks/T06-authorize-script.md) | 1 prove auth | agent + human step | not started | |
 | T07 | [Prove `POST /activities` with a manual curl](tasks/T07-manual-create-activity.md) | 1 prove auth | human | not started | observes open item 4 |
-| T08 | [Write `app/models.py`](tasks/T08-models-module.md) | 2 parser | agent | not started | |
+| T08 | [Write `app/models.ts`](tasks/T08-models-module.md) | 2 parser | agent | not started | |
 | T09 | [Add the share-text fixtures](tasks/T09-fixtures.md) | 2 parser | agent | not started | |
-| T10 | [Write `app/parser.py`](tasks/T10-parser-core.md) | 2 parser | agent | not started | |
+| T10 | [Write `app/parser.ts`](tasks/T10-parser-core.md) | 2 parser | agent | not started | |
 | T11 | [Derived values, dedupe key, elapsed](tasks/T11-parser-derived-values.md) | 2 parser | agent | not started | |
-| T12 | [Complete `tests/test_parser.py`](tasks/T12-parser-tests.md) | 2 parser | agent | not started | |
-| T13 | [Write `app/store.py` — `workouts`](tasks/T13-store-workouts.md) | 3 ingest v1 | agent | not started | |
-| T14 | [Write `app/llm.py` — fallback template](tasks/T14-llm-fallback-template.md) | 3 ingest v1 | agent | not started | |
-| T15 | [Write `app/strava.py`](tasks/T15-strava-client.md) | 3 ingest v1 | agent | not started | |
-| T16 | [Write `app/main.py`](tasks/T16-ingest-endpoint.md) | 3 ingest v1 | agent | not started | |
+| T12 | [Complete `tests/test_parser.ts`](tasks/T12-parser-tests.md) | 2 parser | agent | not started | |
+| T13 | [Write `app/store.ts` — `workouts`](tasks/T13-store-workouts.md) | 3 ingest v1 | agent | not started | |
+| T14 | [Write `app/llm.ts` — fallback template](tasks/T14-llm-fallback-template.md) | 3 ingest v1 | agent | not started | |
+| T15 | [Write `app/strava.ts`](tasks/T15-strava-client.md) | 3 ingest v1 | agent | not started | |
+| T16 | [Write `app/main.ts`](tasks/T16-ingest-endpoint.md) | 3 ingest v1 | agent | not started | |
 | T17 | [Ingest and boundary tests](tasks/T17-ingest-and-boundary-tests.md) | 3 ingest v1 | agent | not started | |
 | T18 | [Buildpacks build and local run](tasks/T18-dockerfile-local-run.md) | 3 ingest v1 | agent | not started | |
 | T19 | [Deploy to Cloud Run via Cloud Build with a budget alert](tasks/T19-cloud-run-deploy.md) | 3 ingest v1 | agent | not started | Step 3 done early in T02 — `google_billing_budget` applied at 10 USD/month (50/90/100% actual, 100% forecast). Only the Cloud Build trigger and the deploy remain |
@@ -43,7 +43,7 @@ Status values: `not started` · `in progress` · `done` · `blocked` · `skipped
 | T24 | [Build `HistoryContext` and PR flags](tasks/T24-pr-flags-history-context.md) | 6 history and PRs | agent | not started | |
 | T25 | [Probe `POST /uploads` for JSON sets](tasks/T25-probe-upload-json.md) | 7 optional | agent | not started | resolves open item 3 |
 | T26 | [Structured upload behind the flag](tasks/T26-structured-upload.md) | 7 optional | agent | not started | only if T25 succeeds |
-| T27 | [Write `scripts/reparse.py`](tasks/T27-reparse-script.md) | 7 optional tooling | agent | not started | |
+| T27 | [Write `scripts/reparse.ts`](tasks/T27-reparse-script.md) | 7 optional tooling | agent | not started | |
 
 Dependencies live in [tasks/README.md](tasks/README.md) and in each task's header; they are not duplicated here.
 

@@ -1,11 +1,11 @@
 ---
 status: task
-last-updated: 2026-09-11
+last-updated: 2026-09-13
 ---
 
 ← [Task index](README.md) · [Status](../STATUS.md)
 
-# T15 — Write `app/strava.py` — refresh, rotation, create activity
+# T15 — Write `app/strava.ts` — refresh, rotation, create activity
 
 |            |     |
 | ---------- | --- |
@@ -23,20 +23,20 @@ last-updated: 2026-09-11
 
 ## Deliverable
 
-- `app/strava.py` — token refresh with in-memory caching and write-back, plus `create_activity()` on the primary path. The **[U]** structured upload is [T26](T26-structured-upload.md).
+- `app/strava.ts` — token refresh with in-memory caching and write-back, plus `createActivity()` on the primary path. The **[U]** structured upload is [T26](T26-structured-upload.md).
 
 ## Steps
 
 1. Implement refresh per [§7.3](../planning/05-strava-integration.md#73-token-refresh--v), caching the access token in memory keyed by `expires_at` and refreshing under 300s remaining.
 2. Whenever the response's `refresh_token` differs from the one sent, write a new Secret Manager version via [T05](T05-config-module.md) before proceeding — [Constraint 8](../CONSTRAINTS.md); losing it forces redoing [T06](T06-authorize-script.md) by hand.
-3. Implement `create_activity()` with the required fields from [§7.4](../planning/05-strava-integration.md#74-creating-the-activity), sending both `type` and `sport_type` unless [T07](T07-manual-create-activity.md) recorded otherwise in [STATUS.md](../STATUS.md), and return the `id` plus the built activity URL.
+3. Implement `createActivity()` with the required fields from [§7.4](../planning/05-strava-integration.md#74-creating-the-activity), sending both `type` and `sport_type` unless [T07](T07-manual-create-activity.md) recorded otherwise in [STATUS.md](../STATUS.md), and return the `id` plus the built activity URL.
 4. Map failures as [§11](../planning/08-error-handling.md#11-error-handling) specifies: 401 → refresh once and retry once then fail; 429 → fail immediately with the usage headers logged; other 4xx → fail with the Fault reason. No retry loops ([Constraint 12](../CONSTRAINTS.md)).
 5. Log the [§7.6](../planning/05-strava-integration.md#76-rate-limits--v) usage headers on every call.
 
 ## Done when
 
 ```bash
-pytest tests/test_strava.py
+npm test -- tests/test_strava.ts
 ```
 
 Passes with the HTTP layer stubbed, covering: cached token reuse, refresh under the 300s threshold, a rotated refresh token triggering exactly one secret write, 401-then-retry-once, and 429 raising without a retry.

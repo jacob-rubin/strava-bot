@@ -1,6 +1,6 @@
 ---
 status: authoritative
-last-updated: 2026-09-10
+last-updated: 2026-09-13
 ---
 
 ← [Index](../PLANNING.md)
@@ -40,7 +40,7 @@ https://link.strong.app/gvvdfvga
 ```
 document    := title_line date_line block* share_link?
 title_line  := <free text>                       # line 1
-date_line   := "%A, %B %d, %Y at %I:%M %p"       # line 2, naive local time, no offset
+date_line   := "cccc, LLLL d, yyyy 'at' h:mm a"    # Luxon format; line 2, naive local time, no offset
 block       := blank_line exercise_line set_line+
 exercise_line := <free text, not matching /^Set \S+:/>
 set_line    := "Set " index ": " payload
@@ -97,7 +97,7 @@ elapsed = received_at - started_at        if 0 < delta <= 14400
 
 ## 4. Parser module
 
-`app/parser.py` implements this section: §3's grammar, its nine parsing rules, and every set-payload variant, producing the structures in [§6](04-persistence.md#data-model-for-generate). It is built from this spec — there is no pre-existing implementation to port.
+`app/parser.ts` implements this section: §3's grammar, its nine parsing rules, and every set-payload variant, producing the structures in [§6](04-persistence.md#data-model-for-generate). It is built from this spec — there is no pre-existing implementation to port.
 
 The normative definition of correct is [§12](09-acceptance-criteria.md#12-acceptance-criteria), whose parser and variant bullets cover warmup, bodyweight, assisted, timed, and distance payloads. If a §12 expectation turns out to be wrong, correct the spec deliberately rather than relaxing the test.
 
