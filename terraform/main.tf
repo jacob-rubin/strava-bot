@@ -20,6 +20,13 @@ terraform {
       source  = "hashicorp/google"
       version = "~> 6.0"
     }
+
+    # T03 generates INGEST_KEY and INGEST_PATH_TOKEN rather than taking them
+    # from a file that could be committed.
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.6"
+    }
   }
 
   # Backend config takes no variables, so the bucket is literal; the project id
@@ -52,9 +59,9 @@ provider "google" {
 locals {
   # The Secret-Manager-sourced rows of §9 Configuration, keyed by the env var
   # the service reads. Values are the secret names the Cloud Build deploy step
-  # in §5 Deployment already references. Versions are created by T03;
-  # STRAVA_REFRESH_TOKEN is populated by scripts/authorize.py (T06) and
-  # rewritten by the service on rotation (Constraint 8).
+  # in §5 Deployment already references. Versions are created below (T03),
+  # except STRAVA_REFRESH_TOKEN, which is populated by scripts/authorize.py
+  # (T06) and rewritten by the service on rotation (Constraint 8).
   secrets = {
     INGEST_KEY           = "strava-bot-ingest-key"
     INGEST_PATH_TOKEN    = "strava-bot-path-token"
@@ -132,6 +139,46 @@ resource "google_secret_manager_secret" "secrets" {
   }
 
   depends_on = [google_project_service.enabled]
+}
+
+# T03 step 2: the two ingest secrets are generated here, never typed or read
+# from a file. 43 alphanumeric characters is ~256 bits of entropy, comfortably
+# past the 32-byte floor, and every character is URL-safe — INGEST_PATH_TOKEN
+# is a path segment of POST /ingest/{path_token} (§5), and ADR 0001 makes both
+# of these static bearer secrets the whole of the endpoint's authentication.
+resource "random_password" "ingest_key" {
+  length  = 43
+  special = false
+}
+
+resource "random_password" "ingest_path_token" {
+  length  = 43
+  special = false
+}
+
+# One enabled version per Secret-Manager-sourced variable of §9, except
+# the two whose first version is written elsewhere, which stay empty here with
+# Terraform owning no version of them: STRAVA_REFRESH_TOKEN, written by T06's
+# scripts/authorize.py and rewritten by the service on rotation, and
+# LLM_API_KEY, which has no value until T22 chooses a provider.
+resource "google_secret_manager_secret_version" "ingest_key" {
+  secret      = google_secret_manager_secret.secrets["INGEST_KEY"].id
+  secret_data = random_password.ingest_key.result
+  enabled     = true
+}
+
+resource "google_secret_manager_secret_version" "ingest_path_token" {
+  secret      = google_secret_manager_secret.secrets["INGEST_PATH_TOKEN"].id
+  secret_data = random_password.ingest_path_token.result
+  enabled     = true
+}
+
+# T03 step 3: the value comes from TF_VAR_strava_client_secret in the applying
+# shell's environment, never from a file that could be committed.
+resource "google_secret_manager_secret_version" "strava_client_secret" {
+  secret      = google_secret_manager_secret.secrets["STRAVA_CLIENT_SECRET"].id
+  secret_data = var.strava_client_secret
+  enabled     = true
 }
 
 # §9: the service reads every secret above at startup.
