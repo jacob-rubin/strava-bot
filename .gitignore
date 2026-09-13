@@ -4,3 +4,17 @@
 .env
 .env.*
 !.env.example
+
+# Terraform (docs/decisions/0007-terraform-for-gcp-infra.md). State may hold
+# secret material once T03 adds secret versions, and *.tfvars carries the
+# values passed at apply time; neither belongs in VCS. The provider lock file
+# (.terraform.lock.hcl) is committed on purpose.
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+crash.log
+crash.*.log
+*.tfplan
+apply.log
