@@ -55,3 +55,19 @@ variable "budget_actual_thresholds" {
   type        = list(number)
   default     = [0.5, 0.9, 1.0]
 }
+
+# Sensitive secret material (T03). Both are supplied at apply time from the
+# environment as TF_VAR_strava_client_secret / TF_VAR_llm_api_key and have no
+# default on purpose: a default would invite a committed *.tfvars file, which
+# ADR 0007 forbids for secret versions.
+variable "strava_client_secret" {
+  description = "Strava API application client secret from T01; pass via TF_VAR_strava_client_secret."
+  type        = string
+  sensitive   = true
+}
+
+variable "llm_api_key" {
+  description = "API key for the LLM provider used by app/llm.py; pass via TF_VAR_llm_api_key."
+  type        = string
+  sensitive   = true
+}
