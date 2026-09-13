@@ -157,8 +157,10 @@ resource "random_password" "ingest_path_token" {
 }
 
 # One enabled version per Secret-Manager-sourced variable of §9, except
-# STRAVA_REFRESH_TOKEN: T06's scripts/authorize.py adds its first version, so
-# the secret stays empty here and Terraform never owns a version of it.
+# the two whose first version is written elsewhere, which stay empty here with
+# Terraform owning no version of them: STRAVA_REFRESH_TOKEN, written by T06's
+# scripts/authorize.py and rewritten by the service on rotation, and
+# LLM_API_KEY, which has no value until T22 chooses a provider.
 resource "google_secret_manager_secret_version" "ingest_key" {
   secret      = google_secret_manager_secret.secrets["INGEST_KEY"].id
   secret_data = random_password.ingest_key.result
@@ -171,17 +173,11 @@ resource "google_secret_manager_secret_version" "ingest_path_token" {
   enabled     = true
 }
 
-# T03 step 3: values come from TF_VAR_strava_client_secret and TF_VAR_llm_api_key
-# in the applying shell's environment.
+# T03 step 3: the value comes from TF_VAR_strava_client_secret in the applying
+# shell's environment, never from a file that could be committed.
 resource "google_secret_manager_secret_version" "strava_client_secret" {
   secret      = google_secret_manager_secret.secrets["STRAVA_CLIENT_SECRET"].id
   secret_data = var.strava_client_secret
-  enabled     = true
-}
-
-resource "google_secret_manager_secret_version" "llm_api_key" {
-  secret      = google_secret_manager_secret.secrets["LLM_API_KEY"].id
-  secret_data = var.llm_api_key
   enabled     = true
 }
 
