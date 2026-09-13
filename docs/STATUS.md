@@ -1,13 +1,13 @@
 ---
 status: living-document
-last-updated: 2026-09-12
+last-updated: 2026-09-13
 ---
 
 ← [Index](PLANNING.md) · [Task runbooks](tasks/README.md)
 
 # Build status
 
-**Current focus:** [T02 — Stand up the GCP project with Terraform](tasks/T02-gcp-project.md). Nothing in `app/`, `scripts/`, or `tests/` exists yet — the repo holds the spec in `docs/` plus the `.gitignore` landed early by T01.
+**Current focus:** [T03 — Create the Secret Manager secrets with Terraform](tasks/T03-secret-manager-secrets.md). Nothing in `app/`, `scripts/`, or `tests/` exists yet; `terraform/` holds the applied GCP infrastructure, and the `.gitignore` landed early by T01.
 
 This file is the **single source of truth for task status**. Task runbooks in [tasks/](tasks/README.md) are static; they carry no status of their own. Unlike the rest of `docs/`, this file is expected to change every work session — update it as tasks complete instead of inferring progress from the code or git log.
 
@@ -18,7 +18,7 @@ Status values: `not started` · `in progress` · `done` · `blocked` · `skipped
 | ID | Task | Phase — [§13](planning/10-build-order-and-client.md#13-build-order) | Executor | Status | Notes |
 | -- | ---- | ----- | -------- | ------ | ----- |
 | T01 | [Create the Strava API application](tasks/T01-strava-api-app.md) | 1 prove auth | human | done | `client_id` 278290; secret in a git-ignored `.env` pending T03. Added `.gitignore` (T04's deliverable) early to cover it |
-| T02 | [Stand up the GCP project with Terraform](tasks/T02-gcp-project.md) | 1 prove auth | agent + human step | in progress | |
+| T02 | [Stand up the GCP project with Terraform](tasks/T02-gcp-project.md) | 1 prove auth | agent + human step | done | Project `strava-bot-508419` (`us-central1`), imported rather than created — it already existed. State is remote in `gs://strava-bot-508419-tfstate`, the one resource made with `gcloud` ([ADR 0007](decisions/0007-terraform-for-gcp-infra.md) amended). T19's budget landed early; `storage`/`cloudbilling`/`billingbudgets`/`cloudresourcemanager` enabled beyond the runbook's five APIs |
 | T03 | [Create the Secret Manager secrets with Terraform](tasks/T03-secret-manager-secrets.md) | 1 prove auth | agent | not started | |
 | T04 | [Scaffold the repository skeleton](tasks/T04-repo-skeleton.md) | 1 prove auth | agent | not started | |
 | T05 | [Write `app/config.py`](tasks/T05-config-module.md) | 1 prove auth | agent | not started | |
@@ -35,7 +35,7 @@ Status values: `not started` · `in progress` · `done` · `blocked` · `skipped
 | T16 | [Write `app/main.py`](tasks/T16-ingest-endpoint.md) | 3 ingest v1 | agent | not started | |
 | T17 | [Ingest and boundary tests](tasks/T17-ingest-and-boundary-tests.md) | 3 ingest v1 | agent | not started | |
 | T18 | [Buildpacks build and local run](tasks/T18-dockerfile-local-run.md) | 3 ingest v1 | agent | not started | |
-| T19 | [Deploy to Cloud Run via Cloud Build with a budget alert](tasks/T19-cloud-run-deploy.md) | 3 ingest v1 | agent | not started | |
+| T19 | [Deploy to Cloud Run via Cloud Build with a budget alert](tasks/T19-cloud-run-deploy.md) | 3 ingest v1 | agent | not started | Step 3 done early in T02 — `google_billing_budget` applied at 10 USD/month (50/90/100% actual, 100% forecast). Only the Cloud Build trigger and the deploy remain |
 | T20 | [Probe what Strong's share sheet delivers](tasks/T20-share-sheet-probe.md) | 4 client | human | not started | resolves open item 1; no dependencies, run early |
 | T21 | [Wire the Shortcut and confirm the round trip](tasks/T21-shortcut-wiring-e2e.md) | 4 client | human | not started | needs open item 1 resolved |
 | T22 | [Replace the template with the real LLM path](tasks/T22-llm-provider.md) | 5 LLM generation | agent | not started | |
