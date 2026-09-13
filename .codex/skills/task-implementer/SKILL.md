@@ -66,7 +66,7 @@ Build exactly what the runbook's **Deliverable** lists by following its **Steps*
 
 ## 6. Verify
 
-Run the runbook's **Done when** block verbatim. Python commands go through the repo virtualenv (`.venv`, created by T04 — `.venv\Scripts\python.exe` on Windows), never the system interpreter, whose version differs from the spec's 3.12.
+Run the runbook's **Done when** block verbatim. Install dependencies with `npm ci` when `node_modules/` is absent or stale, use the repo-local tools through npm scripts or `npm exec`, and verify that Node.js satisfies the `24.x` engine declared by T04. Do not install or invoke Python tooling for this project.
 
 When the runbook has no automated check, verify end to end for real — start the service locally, issue the actual request, inspect the actual result — and capture the output. Never mark something verified from reading the code.
 

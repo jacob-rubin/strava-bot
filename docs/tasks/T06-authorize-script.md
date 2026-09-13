@@ -1,11 +1,11 @@
 ---
 status: task
-last-updated: 2026-09-12
+last-updated: 2026-09-13
 ---
 
 ← [Task index](README.md) · [Status](../STATUS.md)
 
-# T06 — Write `scripts/authorize.py` and obtain the refresh token
+# T06 — Write `scripts/authorize.ts` and obtain the refresh token
 
 |            |     |
 | ---------- | --- |
@@ -22,7 +22,7 @@ last-updated: 2026-09-12
 
 ## Deliverable
 
-- `scripts/authorize.py` — prints the authorize URL, accepts the redirect `code`, performs the exchange, and writes the resulting `refresh_token` as a new Secret Manager version
+- `scripts/authorize.ts` — prints the authorize URL, accepts the redirect `code`, performs the exchange, and writes the resulting `refresh_token` as a new Secret Manager version
 - A populated `STRAVA_REFRESH_TOKEN` secret version
 
 ## Steps
@@ -35,7 +35,7 @@ last-updated: 2026-09-12
 ## Done when
 
 ```bash
-python scripts/authorize.py
+npm exec -- tsx scripts/authorize.ts
 ```
 
 The script exits 0 without printing a token, and the `STRAVA_REFRESH_TOKEN` secret now has a new `enabled` version created just now — the script's own success line confirms the write-back.

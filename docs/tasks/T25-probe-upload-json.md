@@ -1,6 +1,6 @@
 ---
 status: task
-last-updated: 2026-09-11
+last-updated: 2026-09-13
 ---
 
 ← [Task index](README.md) · [Status](../STATUS.md)
@@ -22,7 +22,7 @@ last-updated: 2026-09-11
 
 ## Deliverable
 
-- `scripts/probe_upload_json.py` — one-shot probe, not part of the service
+- `scripts/probe_upload_json.ts` — one-shot probe, not part of the service
 - A recorded answer to open item 3 in [STATUS.md](../STATUS.md)
 
 ## Steps
@@ -35,7 +35,7 @@ last-updated: 2026-09-11
 ## Done when
 
 ```bash
-python scripts/probe_upload_json.py
+npm exec -- tsx scripts/probe_upload_json.ts
 ```
 
 Exits 0 having printed a definite verdict for both field names, and [STATUS.md](../STATUS.md) open-item row 3 reads `resolved` with that verdict.

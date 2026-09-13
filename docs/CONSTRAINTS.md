@@ -1,6 +1,6 @@
 ---
 status: authoritative
-last-updated: 2026-09-12
+last-updated: 2026-09-13
 ---
 
 ← [Index](PLANNING.md)
@@ -9,11 +9,11 @@ last-updated: 2026-09-12
 
 Every rule here is called out as mandatory somewhere in [PLANNING.md](PLANNING.md). This file exists so an agent editing `app/` can check itself in one pass instead of re-reading the whole spec. If a change would violate one of these, stop and re-read the linked section — don't route around it.
 
-1. **No Strava data ever reaches the LLM.** Strava API Policy §5.3 forbids using Strava data in connection with AI training, evaluation, or operation (including RAG/grounding). `app/llm.py` must not import `app/strava.py`, and must not accept any value returned by it — not `activity_id`, not upload status, not error strings. Enforced by `tests/test_boundaries.py`. → [Strava integration §7.5](planning/05-strava-integration.md)
+1. **No Strava data ever reaches the LLM.** Strava API Policy §5.3 forbids using Strava data in connection with AI training, evaluation, or operation (including RAG/grounding). `app/llm.ts` must not import `app/strava.ts`, and must not accept any value returned by it — not `activity_id`, not upload status, not error strings. Enforced by `tests/test_boundaries.ts`. → [Strava integration §7.5](planning/05-strava-integration.md)
 
 2. **Request `activity:write` only — no read scope.** This makes constraint 1 structurally true (no Strava data can be fetched at all), not just a code convention. → [Strava integration §7.2](planning/05-strava-integration.md)
 
-3. **Auth failures return 404 with an empty body, always.** Wrong `path_token` or wrong `X-Ingest-Key` — same response either way. Never 401, never a message that reveals which check failed, never log the supplied values. Compare secrets with `hmac.compare_digest`, not `==`. → [Ingest API §5](planning/03-ingest-api.md)
+3. **Auth failures return 404 with an empty body, always.** Wrong `path_token` or wrong `X-Ingest-Key` — same response either way. Never 401, never a message that reveals which check failed, never log the supplied values. Compare fixed-length SHA-256 digests with Node's `crypto.timingSafeEqual`, never secrets with `===`. → [Ingest API §5](planning/03-ingest-api.md)
 
 4. **Cheap rejections precede all paid work.** Auth → size cap → parse → idempotency lookup, in that order, before any LLM or Strava call. → [Ingest API §5](planning/03-ingest-api.md)
 

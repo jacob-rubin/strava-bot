@@ -1,6 +1,6 @@
 ---
 status: authoritative
-last-updated: 2026-09-12
+last-updated: 2026-09-13
 ---
 
 ← [Index](../PLANNING.md)
@@ -17,7 +17,7 @@ last-updated: 2026-09-12
 | Body         | Strong share text, verbatim, unmodified                                                          |
 | Header       | `X-Ingest-Key: <secret>`                                                                         |
 
-**Authentication.** Compare `path_token` and `X-Ingest-Key` against secrets using `hmac.compare_digest`. Failure of either returns **404** with an empty body — do not return 401, do not distinguish which check failed, do not log the supplied values.
+**Authentication.** Hash each supplied and expected value to a fixed-length SHA-256 digest, then compare the digests using Node's `crypto.timingSafeEqual`. Do not call `timingSafeEqual` on the raw values because it throws when their byte lengths differ. Failure of either check returns **404** with an empty body — do not return 401, do not distinguish which check failed, do not log the supplied values.
 
 Rationale: Shortcuts has no crypto primitives, so OIDC and HMAC request signing are impossible on the client. A static bearer secret is the only option. Blast radius is bounded: the key permits posting workouts to one Strava account and nothing else.
 

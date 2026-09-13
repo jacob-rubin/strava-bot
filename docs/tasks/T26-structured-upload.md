@@ -1,6 +1,6 @@
 ---
 status: task
-last-updated: 2026-09-11
+last-updated: 2026-09-13
 ---
 
 ← [Task index](README.md) · [Status](../STATUS.md)
@@ -23,23 +23,23 @@ last-updated: 2026-09-11
 
 ## Deliverable
 
-- `app/strava.py` — `upload_structured()` plus flag-gated dispatch, defaulting off
+- `app/strava.ts` — `uploadStructured()` plus flag-gated dispatch, defaulting off
 
 ## Steps
 
 1. Do not start this task unless [T25](T25-probe-upload-json.md) produced a working field name. Building on an unconfirmed **[U]** claim is exactly what [PLANNING.md](../PLANNING.md) forbids.
 2. Implement the upload and the poll loop from [§7.4](../planning/05-strava-integration.md#74-creating-the-activity), with the 30s timeout.
 3. Distribute set timestamps uniformly across `elapsed_time` — only monotonicity and in-range values matter — and send `category` / `category_subtype` as null until the deferred mapping exists.
-4. On any failure, fall back to `create_activity()` within the same request ([§11](../planning/08-error-handling.md#11-error-handling)); a user who taps Share must always get an activity.
+4. On any failure, fall back to `createActivity()` within the same request ([§11](../planning/08-error-handling.md#11-error-handling)); a user who taps Share must always get an activity.
 5. Keep the flag default `false` in [§9](../planning/07-config-and-repo-layout.md#9-configuration) and enable it only on the deployed service after a successful live run.
 
 ## Done when
 
 ```bash
-pytest tests/test_strava.py -k structured
+npm test -- tests/test_strava.ts -t structured
 ```
 
-Passes, covering: flag off means `create_activity` is the only call made, upload error falls back to `create_activity` in the same request, and the poll loop times out at 30s into the fallback.
+Passes, covering: flag off means `createActivity` is the only call made, upload error falls back to `createActivity` in the same request, and the poll loop times out at 30s into the fallback.
 
 ## On completion
 

@@ -20,7 +20,7 @@ Example shape:
 ```text
 T07 needs you — Strava's POST /activities call must run against a live token.
 
-1. Run: .venv\Scripts\python.exe scripts/authorize.py
+1. Run: npm exec -- tsx scripts/authorize.ts
 2. Open the printed URL, approve, and copy the full localhost redirect URL.
 3. Confirm the activity appears at https://www.strava.com/athlete/training
 

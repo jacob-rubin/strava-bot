@@ -1,6 +1,6 @@
 ---
 status: task
-last-updated: 2026-09-11
+last-updated: 2026-09-13
 ---
 
 ← [Task index](README.md) · [Status](../STATUS.md)
@@ -21,7 +21,7 @@ last-updated: 2026-09-11
 
 ## Deliverable
 
-- `app/store.py` — `history/{exercise_name}` read and write, written only after a successful post
+- `app/store.ts` — `history/{exercise_name}` read and write, written only after a successful post
 
 ## Steps
 
@@ -33,7 +33,7 @@ last-updated: 2026-09-11
 ## Done when
 
 ```bash
-pytest tests/test_store.py -k history
+npm test -- tests/test_store.ts -t history
 ```
 
 Passes, covering a first-time exercise creating a document, a second workout appending to `recent`, `recent` truncating at 10, and no history write when the post failed.

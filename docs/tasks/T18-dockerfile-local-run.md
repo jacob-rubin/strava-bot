@@ -1,6 +1,6 @@
 ---
 status: task
-last-updated: 2026-09-12
+last-updated: 2026-09-13
 ---
 
 ← [Task index](README.md) · [Status](../STATUS.md)
@@ -21,11 +21,11 @@ last-updated: 2026-09-12
 
 ## Deliverable
 
-- A buildpack-buildable app with no `Dockerfile`: a Python 3.12 project serving `app.main:app` and honouring `$PORT` (default 8080).
+- A buildpack-buildable app with no `Dockerfile`: a Node.js 24 LTS project whose compiled npm `start` command serves Fastify on `$PORT` (default 8080).
 
 ## Steps
 
-1. Keep the project buildable by Google's native buildpacks: declare dependencies in a lockfile/requirements file with only what [§10](../planning/07-config-and-repo-layout.md#10-repository-layout) lists, and expose `app.main:app`. Do not add a `Dockerfile`.
+1. Keep the project buildable by Google's native Node.js buildpack: commit `package-lock.json`, keep the dependency set and npm scripts aligned with [§10](../planning/07-config-and-repo-layout.md#10-repository-layout), and do not add a `Dockerfile`.
 2. Bind to `$PORT` with a default of 8080, as Cloud Run requires.
 3. Build locally with `pack` and Google's buildpacks builder to confirm the image builds, then run the app locally with the [§9](../planning/07-config-and-repo-layout.md#9-configuration) variables supplied as environment variables, using dummy secrets.
 
@@ -33,7 +33,7 @@ last-updated: 2026-09-12
 
 ```bash
 pack build --builder=gcr.io/buildpacks/builder strava-bot
-uvicorn app.main:app --port 8080 &
+PORT=8080 npm start &
 curl -s localhost:8080/healthz
 ```
 

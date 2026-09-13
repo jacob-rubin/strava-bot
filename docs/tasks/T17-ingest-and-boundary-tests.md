@@ -1,11 +1,11 @@
 ---
 status: task
-last-updated: 2026-09-11
+last-updated: 2026-09-13
 ---
 
 ← [Task index](README.md) · [Status](../STATUS.md)
 
-# T17 — `tests/test_ingest.py` and `tests/test_boundaries.py`
+# T17 — `tests/test_ingest.ts` and `tests/test_boundaries.ts`
 
 |            |     |
 | ---------- | --- |
@@ -22,23 +22,24 @@ last-updated: 2026-09-11
 
 ## Deliverable
 
-- `tests/test_ingest.py` — one test per "Ingest" bullet in [§12](../planning/09-acceptance-criteria.md#12-acceptance-criteria)
-- `tests/test_boundaries.py` — the import-boundary enforcement [Constraint 1](../CONSTRAINTS.md) names
+- `tests/test_ingest.ts` — one test per "Ingest" bullet in [§12](../planning/09-acceptance-criteria.md#12-acceptance-criteria)
+- `tests/test_boundaries.ts` — the import-boundary enforcement [Constraint 1](../CONSTRAINTS.md) names
 
 ## Steps
 
 1. Cover each [§12](../planning/09-acceptance-criteria.md#12-acceptance-criteria) ingest bullet: wrong key, wrong path token, oversized body with no Firestore write, double post, two slugs one activity, unparseable body leaving a `raw_text` document, LLM raising yet the activity still created, and Strava 429 → 502 with `status="failed"`.
-2. Implement the transitive-import assertion: `app.llm` must reach `app.strava` through no import chain.
-3. Implement the grep-style assertion that no Strava response object is referenced inside `app/llm.py`.
-4. Make `tests/test_boundaries.py` fail loudly and specifically — it is the only automated enforcement of the [§7.5](../planning/05-strava-integration.md#75-policy-constraint--non-negotiable) policy constraint.
+2. Use the TypeScript compiler API to walk relative imports transitively and assert that `app/llm.ts` has no import path to `app/strava.ts`.
+3. Implement the grep-style assertion that no Strava response object is referenced inside `app/llm.ts`.
+4. Make `tests/test_boundaries.ts` fail loudly and specifically — it is the only automated enforcement of the [§7.5](../planning/05-strava-integration.md#75-policy-constraint--non-negotiable) policy constraint.
 
 ## Done when
 
 ```bash
-pytest
+npm run typecheck
+npm test
 ```
 
-The whole suite passes. Then temporarily add `import app.strava` to `app/llm.py`, confirm `pytest tests/test_boundaries.py` fails, and revert.
+The whole suite passes. Then temporarily add an import of `./strava.js` to `app/llm.ts`, confirm `npm test -- tests/test_boundaries.ts` fails, and revert.
 
 ## On completion
 

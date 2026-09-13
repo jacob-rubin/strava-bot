@@ -1,11 +1,11 @@
 ---
 status: task
-last-updated: 2026-09-11
+last-updated: 2026-09-13
 ---
 
 ← [Task index](README.md) · [Status](../STATUS.md)
 
-# T12 — Complete `tests/test_parser.py` against §12
+# T12 — Complete `tests/test_parser.ts` against §12
 
 |            |     |
 | ---------- | --- |
@@ -20,11 +20,11 @@ last-updated: 2026-09-11
 
 ## Deliverable
 
-- `tests/test_parser.py` — one test per bullet under "Parser — against the §3 fixture" and "Parser — variants" in [§12](../planning/09-acceptance-criteria.md#12-acceptance-criteria)
+- `tests/test_parser.ts` — one test per bullet under "Parser — against the §3 fixture" and "Parser — variants" in [§12](../planning/09-acceptance-criteria.md#12-acceptance-criteria)
 
 ## Steps
 
-1. Write a test for each fixture bullet: exercise/set/rep/volume counts, the `Deadlift (Barbell)` decomposition and top set, `Hack Squat` equipment `None`, `Calf Press on Leg Press` keeping its base name, the dedupe key, and the naive `started_at`.
+1. Write a test for each fixture bullet: exercise/set/rep/volume counts, the `Deadlift (Barbell)` decomposition and top set, `Hack Squat` equipment `null`, `Calf Press on Leg Press` keeping its base name, the dedupe key, and the naive `started_at` string.
 2. Write a test for each variant bullet, including the `x`-vs-`×` equivalence and the `unparsed` retention that must not raise.
 3. Assert the numbers from [§12](../planning/09-acceptance-criteria.md#12-acceptance-criteria) literally; do not recompute expected values from parser output.
 4. If a [§12](../planning/09-acceptance-criteria.md#12-acceptance-criteria) bullet turns out to be wrong, fix the spec in a separate commit rather than weakening the test.
@@ -32,10 +32,10 @@ last-updated: 2026-09-11
 ## Done when
 
 ```bash
-pytest tests/test_parser.py -v
+npm test -- tests/test_parser.ts --reporter=verbose
 ```
 
-All tests pass, and the count of test functions is at least the number of bullets in the two parser sections of [§12](../planning/09-acceptance-criteria.md#12-acceptance-criteria).
+All tests pass, and the count of test cases is at least the number of bullets in the two parser sections of [§12](../planning/09-acceptance-criteria.md#12-acceptance-criteria).
 
 ## On completion
 
