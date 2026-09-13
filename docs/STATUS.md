@@ -19,7 +19,7 @@ Status values: `not started` · `in progress` · `done` · `blocked` · `skipped
 | -- | ---- | ----- | -------- | ------ | ----- |
 | T01 | [Create the Strava API application](tasks/T01-strava-api-app.md) | 1 prove auth | human | done | `client_id` 278290; secret in a git-ignored `.env` pending T03. Added `.gitignore` (T04's deliverable) early to cover it |
 | T02 | [Stand up the GCP project with Terraform](tasks/T02-gcp-project.md) | 1 prove auth | agent + human step | done | Project `strava-bot-508419` (`us-central1`), imported rather than created — it already existed. State is remote in `gs://strava-bot-508419-tfstate`, the one resource made with `gcloud` ([ADR 0007](decisions/0007-terraform-for-gcp-infra.md) amended). T19's budget landed early; `storage`/`cloudbilling`/`billingbudgets`/`cloudresourcemanager` enabled beyond the runbook's five APIs |
-| T03 | [Create the Secret Manager secrets with Terraform](tasks/T03-secret-manager-secrets.md) | 1 prove auth | agent | not started | |
+| T03 | [Create the Secret Manager secrets with Terraform](tasks/T03-secret-manager-secrets.md) | 1 prove auth | agent | in progress | |
 | T04 | [Scaffold the repository skeleton](tasks/T04-repo-skeleton.md) | 1 prove auth | agent | not started | |
 | T05 | [Write `app/config.py`](tasks/T05-config-module.md) | 1 prove auth | agent | not started | |
 | T06 | [Write `scripts/authorize.py`](tasks/T06-authorize-script.md) | 1 prove auth | agent + human step | not started | |
