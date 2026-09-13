@@ -1,11 +1,11 @@
 ---
 status: task
-last-updated: 2026-09-11
+last-updated: 2026-09-13
 ---
 
 ← [Task index](README.md) · [Status](../STATUS.md)
 
-# T27 — Write `scripts/reparse.py`
+# T27 — Write `scripts/reparse.ts`
 
 |            |     |
 | ---------- | --- |
@@ -23,7 +23,7 @@ last-updated: 2026-09-11
 
 ## Deliverable
 
-- `scripts/reparse.py` — re-parses stored `raw_text` after a parser change and reports differences
+- `scripts/reparse.ts` — re-parses stored `raw_text` after a parser change and reports differences
 
 ## Steps
 
@@ -35,7 +35,7 @@ last-updated: 2026-09-11
 ## Done when
 
 ```bash
-python scripts/reparse.py --dry-run
+npm exec -- tsx scripts/reparse.ts --dry-run
 ```
 
 Exits 0 reporting per-document diffs and an `unparsed` count, with no writes performed and no Strava call made.

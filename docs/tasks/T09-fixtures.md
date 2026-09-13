@@ -1,6 +1,6 @@
 ---
 status: task
-last-updated: 2026-09-11
+last-updated: 2026-09-13
 ---
 
 ← [Task index](README.md) · [Status](../STATUS.md)
@@ -33,7 +33,7 @@ last-updated: 2026-09-11
 ## Done when
 
 ```bash
-python -c "import pathlib; fs=sorted(pathlib.Path('tests/fixtures').glob('*.txt')); print(len(fs)); assert any('\u00d7' in f.read_text(encoding='utf-8') for f in fs)"
+node -e "const fs=require('node:fs'); const files=fs.readdirSync('tests/fixtures').filter(f=>f.endsWith('.txt')); console.log(files.length); if (!files.some(f=>fs.readFileSync('tests/fixtures/'+f,'utf8').includes('\u00d7'))) process.exit(1)"
 ```
 
 Every variant bullet in [§12](../planning/09-acceptance-criteria.md#12-acceptance-criteria) has a backing fixture and at least one fixture contains a literal `×`.

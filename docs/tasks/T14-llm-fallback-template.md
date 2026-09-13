@@ -1,11 +1,11 @@
 ---
 status: task
-last-updated: 2026-09-11
+last-updated: 2026-09-13
 ---
 
 ← [Task index](README.md) · [Status](../STATUS.md)
 
-# T14 — Write `app/llm.py` — signature and deterministic fallback
+# T14 — Write `app/llm.ts` — signature and deterministic fallback
 
 |            |     |
 | ---------- | --- |
@@ -17,12 +17,12 @@ last-updated: 2026-09-11
 ## Read first
 
 - [§8 Title and description generation](../planning/06-llm-generation.md#8-title-and-description-generation) — the `generate()` signature and output constraints
-- [Constraint 1](../CONSTRAINTS.md) — this module must not import `app/strava.py` or accept any value it returns
+- [Constraint 1](../CONSTRAINTS.md) — this module must not import `app/strava.ts` or accept any value it returns
 - [Constraint 9](../CONSTRAINTS.md) and [Constraint 10](../CONSTRAINTS.md)
 
 ## Deliverable
 
-- `app/llm.py` — the final `generate()` signature from [§8](../planning/06-llm-generation.md#8-title-and-description-generation) plus the deterministic template path only. The provider call is [T22](T22-llm-provider.md); [§13 step 3](../planning/10-build-order-and-client.md#13-build-order) ships templated text.
+- `app/llm.ts` — the final async `generate()` signature from [§8](../planning/06-llm-generation.md#8-title-and-description-generation) plus the deterministic template path only. The provider call is [T22](T22-llm-provider.md); [§13 step 3](../planning/10-build-order-and-client.md#13-build-order) ships templated text.
 
 ## Steps
 
@@ -35,7 +35,7 @@ last-updated: 2026-09-11
 ## Done when
 
 ```bash
-pytest tests/test_llm.py
+npm test -- tests/test_llm.ts
 ```
 
 Passes, including a test that two different fixtures produce different descriptions, a test enforcing both length caps, and a test that an empty `HistoryContext` yields no comparative language.

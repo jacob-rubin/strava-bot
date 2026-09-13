@@ -1,6 +1,6 @@
 ---
 status: authoritative
-last-updated: 2026-09-12
+last-updated: 2026-09-13
 ---
 
 ← [Index](../PLANNING.md)
@@ -16,5 +16,6 @@ Short records of choices in [PLANNING.md](../PLANNING.md) that trade something o
 - [0005](0005-pr-detection-in-code.md) — PR detection computed in code, not left to the model
 - [0006](0006-no-retry-queue.md) — No background retry queue; retries are the user tapping Share again
 - [0007](0007-terraform-for-gcp-infra.md) — Terraform for GCP infrastructure; Cloud Build (buildpacks) deploys Cloud Run
+- [0008](0008-typescript-node-runtime.md) — TypeScript on Node.js 24 LTS for the service, scripts, and tests
 
 ← [Index](../PLANNING.md)

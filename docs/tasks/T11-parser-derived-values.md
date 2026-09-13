@@ -1,6 +1,6 @@
 ---
 status: task
-last-updated: 2026-09-11
+last-updated: 2026-09-13
 ---
 
 ← [Task index](README.md) · [Status](../STATUS.md)
@@ -23,7 +23,7 @@ last-updated: 2026-09-11
 
 ## Deliverable
 
-- Derived-value functions in `app/parser.py` (or a sibling module): per-set volume, working-set totals, per-exercise top set, `dedupe_key`, `content_hash`, `elapsed_s`
+- Derived-value functions in `app/parser.ts` (or a sibling module): per-set volume, working-set totals, per-exercise top set, `dedupe_key`, `content_hash`, `elapsed_s`
 
 ## Steps
 
@@ -31,15 +31,15 @@ last-updated: 2026-09-11
 2. Compute each exercise's top set as the lexicographic max of `(weight, reps)` over working sets.
 3. Implement `dedupe_key` with rule 1 then rule 2 from [§6](../planning/04-persistence.md#6-persistence), and always compute `content_hash` alongside it — [ADR 0003](../decisions/0003-content-hash-dedupe-guard.md) makes correctness independent of the **[U]** slug-stability claim.
 4. Implement `elapsed_s` with the two-branch formula and the `ELAPSED_CAP_S` bound from [§3 duration](../planning/02-input-contract.md#duration), taking `received_at` as a parameter so tests can pin it.
-5. Treat `date_line` as naive local time per [§3 duration](../planning/02-input-contract.md#duration); do not attach a tzinfo.
+5. Represent `date_line` as a naive ISO-8601 string per [§3 duration](../planning/02-input-contract.md#duration); do not append an offset or `Z`.
 
 ## Done when
 
 ```bash
-pytest tests/test_parser.py -k "totals or dedupe or elapsed"
+npm test -- tests/test_parser.ts -t "totals|dedupe|elapsed"
 ```
 
-The canonical fixture yields 12 working sets, 105 reps, 19,650 lb total volume, `dedupe_key == "strong:gvvdfvga"`, and a naive `started_at` of `2026-09-09T06:43:00`.
+The canonical fixture yields 12 working sets, 105 reps, 19,650 lb total volume, `dedupe_key === "strong:gvvdfvga"`, and a naive `started_at` of `2026-09-09T06:43:00`.
 
 ## On completion
 

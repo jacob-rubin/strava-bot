@@ -1,11 +1,11 @@
 ---
 status: task
-last-updated: 2026-09-11
+last-updated: 2026-09-13
 ---
 
 ← [Task index](README.md) · [Status](../STATUS.md)
 
-# T13 — Write `app/store.py` — the `workouts` collection
+# T13 — Write `app/store.ts` — the `workouts` collection
 
 |            |     |
 | ---------- | --- |
@@ -23,7 +23,7 @@ last-updated: 2026-09-11
 
 ## Deliverable
 
-- `app/store.py` — read/write for `workouts`, the dual dedupe lookup, and the post-result update. The `history` collection is [T23](T23-history-writes.md).
+- `app/store.ts` — read/write for `workouts`, the dual dedupe lookup, and the post-result update. The `history` collection is [T23](T23-history-writes.md).
 
 ## Steps
 
@@ -36,7 +36,7 @@ last-updated: 2026-09-11
 ## Done when
 
 ```bash
-pytest tests/test_store.py
+npm test -- tests/test_store.ts
 ```
 
 Passes against the Firestore emulator or a stubbed client, covering: fresh write, dedupe-key hit, content-hash hit with a different key, and a parse-failure write that still contains `raw_text`.
