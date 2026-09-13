@@ -110,5 +110,17 @@ The body carries the same summary shown at the review gate: what was built, the 
 This repo holds the source of truth. Codex discovers skills from `$CODEX_HOME/skills`, so after editing this skill, re-copy it:
 
 ```powershell
-Copy-Item -Recurse -Force .codex/skills/task-implementer "$env:CODEX_HOME/skills/task-implementer"
+$codexHome = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $HOME '.codex' }
+Copy-Item -Recurse -Force .codex/skills/task-implementer/* "$codexHome/skills/task-implementer/"
+```
+
+Two traps this form avoids, both of which fail silently:
+
+- `$env:CODEX_HOME` is usually **unset** in an ordinary shell, so `"$env:CODEX_HOME/skills/..."` expands to `/skills/...` and writes a stray `C:\skills\` at the drive root while the real skill stays stale. Resolve the fallback to `~/.codex` first.
+- Copying the **directory** onto a destination that already exists nests it (`task-implementer/task-implementer`) instead of updating it. Copy the directory's **contents** (`/*`) into the destination instead.
+
+Then confirm the installed copy actually changed, rather than assuming the copy landed:
+
+```powershell
+Select-String -Path "$codexHome/skills/task-implementer/SKILL.md" -Pattern '<a phrase you just added>'
 ```
