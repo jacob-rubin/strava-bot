@@ -46,10 +46,11 @@ Runbooks are static spec: never edit one, and never record status inside one.
 Before the first file edit:
 
 1. Confirm the working tree is clean (`git status --porcelain` is empty). If it is not, stop and report the dirty paths.
-2. Sync `main` (`git switch main`, `git pull --ff-only`).
-3. Create `codex/<task-id>-<runbook-slug>` from `main` — the slug is the runbook filename without its id prefix and `.md`, so `docs/tasks/T05-config-module.md` gives `codex/T05-config-module`.
+2. Fetch first, then sync `main`: `git fetch origin --prune`, `git switch main`, `git pull --ff-only`. The previous task's PR is usually merged between sessions, so a local `main` that was current last time is stale now — branching from it silently drops the dependency this task builds on.
+3. Prove `main` is actually current before branching: `git rev-parse main origin/main` must print the same commit twice. If `main` cannot fast-forward, stop and report rather than merging or resetting it.
+4. Create `codex/<task-id>-<runbook-slug>` from that synced `main` — the slug is the runbook filename without its id prefix and `.md`, so `docs/tasks/T05-config-module.md` gives `codex/T05-config-module`.
 
-If that branch already exists locally or on `origin`, stop and ask which branch to use — unless you are resuming a row STATUS.md already marks `in progress` under §1 step 4, in which case that branch is the one to continue on. Never reset or force-update an existing branch. All work, including the STATUS edits, happens on this branch — never commit to `main`.
+If that branch already exists locally or on `origin`, stop and ask which branch to use — unless you are resuming a row STATUS.md already marks `in progress` under §1 step 4, in which case that branch is the one to continue on. Bring it up to date with the `main` you just synced before writing any code: `git merge --ff-only main`, falling back to `git merge main` when the branch has diverged, so the resumed work sits on top of everything already merged. Stop and report if that merge conflicts. Never reset or force-update an existing branch. All work, including the STATUS edits, happens on this branch — never commit to `main`.
 
 ## 4. Claim the task
 
@@ -109,5 +110,17 @@ The body carries the same summary shown at the review gate: what was built, the 
 This repo holds the source of truth. Codex discovers skills from `$CODEX_HOME/skills`, so after editing this skill, re-copy it:
 
 ```powershell
-Copy-Item -Recurse -Force .codex/skills/task-implementer "$env:CODEX_HOME/skills/task-implementer"
+$codexHome = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $HOME '.codex' }
+Copy-Item -Recurse -Force .codex/skills/task-implementer/* "$codexHome/skills/task-implementer/"
+```
+
+Two traps this form avoids, both of which fail silently:
+
+- `$env:CODEX_HOME` is usually **unset** in an ordinary shell, so `"$env:CODEX_HOME/skills/..."` expands to `/skills/...` and writes a stray `C:\skills\` at the drive root while the real skill stays stale. Resolve the fallback to `~/.codex` first.
+- Copying the **directory** onto a destination that already exists nests it (`task-implementer/task-implementer`) instead of updating it. Copy the directory's **contents** (`/*`) into the destination instead.
+
+Then confirm the installed copy actually changed, rather than assuming the copy landed:
+
+```powershell
+Select-String -Path "$codexHome/skills/task-implementer/SKILL.md" -Pattern '<a phrase you just added>'
 ```
