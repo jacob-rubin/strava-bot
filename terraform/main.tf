@@ -5,8 +5,12 @@
 # update resources (docs/decisions/0007-terraform-for-gcp-infra.md).
 # The google_cloudbuild_trigger and google_billing_budget are added by T19.
 #
-# terraform.tfstate can contain secret material once T03 adds secret versions,
-# so it stays out of VCS (see .gitignore); prefer a remote backend (ADR 0007).
+# State can contain secret material once T03 adds secret versions, so it lives
+# in the remote GCS backend below (versioned, uniform ACLs, public access
+# prevented) rather than on disk or in VCS — the "prefer a remote backend" half
+# of ADR 0007. The bucket is the one bootstrap resource Terraform cannot own:
+# it must exist before its own state does, so it was created once with the
+# gcloud CLI and is not declared here.
 
 terraform {
   required_version = ">= 1.5"
@@ -17,11 +21,32 @@ terraform {
       version = "~> 6.0"
     }
   }
+
+  # Backend config takes no variables, so the bucket is literal; the project id
+  # it is named after is not a secret.
+  backend "gcs" {
+    bucket = "strava-bot-508419-tfstate"
+    prefix = "terraform/state"
+  }
 }
 
 provider "google" {
   project = var.project_id
   region  = var.region
+}
+
+# The Budgets API bills quota to the caller's own project, which for local ADC
+# is whatever gcloud set, not this one. This alias attributes that quota to
+# strava-bot's project, where billingbudgets is enabled below. It is scoped to
+# the budget alone: applying it provider-wide would make even reading the
+# project depend on APIs that are not enabled yet on a fresh project.
+provider "google" {
+  alias   = "billing"
+  project = var.project_id
+  region  = var.region
+
+  billing_project       = var.project_id
+  user_project_override = true
 }
 
 locals {
@@ -43,10 +68,16 @@ locals {
 
   services = [
     "artifactregistry.googleapis.com",
+    # Cloud Billing + Budgets back the budget alert below (Constraint 13).
+    "billingbudgets.googleapis.com",
     "cloudbuild.googleapis.com",
+    "cloudbilling.googleapis.com",
+    "cloudresourcemanager.googleapis.com",
     "firestore.googleapis.com",
     "run.googleapis.com",
     "secretmanager.googleapis.com",
+    # Not in T02's list, but the remote state bucket lives in this project.
+    "storage.googleapis.com",
   ]
 
   firestore_location = coalesce(var.firestore_location, var.region)
@@ -105,10 +136,12 @@ resource "google_secret_manager_secret" "secrets" {
 
 # §9: the service reads every secret above at startup.
 resource "google_secret_manager_secret_iam_member" "accessor" {
-  for_each = google_secret_manager_secret.secrets
+  # Keyed off the static local, not the resource map, so the key set is known
+  # at plan time (a resource-derived for_each blocks plan/import).
+  for_each = local.secrets
 
-  project   = each.value.project
-  secret_id = each.value.secret_id
+  project   = google_secret_manager_secret.secrets[each.key].project
+  secret_id = google_secret_manager_secret.secrets[each.key].secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.run.email}"
 }
@@ -122,4 +155,46 @@ resource "google_secret_manager_secret_iam_member" "version_adder" {
   secret_id = google_secret_manager_secret.secrets[each.value].secret_id
   role      = "roles/secretmanager.secretVersionAdder"
   member    = "serviceAccount:${google_service_account.run.email}"
+}
+
+# Constraint 13: the endpoint is public and invokes a paid model, so the
+# --max-instances=3 cost control must be paired with a billing budget alert.
+# Formally T19's resource; landed early so no spend can happen unwatched.
+# Alerts email the billing account's admins and users by default — no
+# notification channel is wired up.
+resource "google_billing_budget" "monthly" {
+  provider = google.billing
+
+  billing_account = var.billing_account
+  display_name    = "strava-bot monthly budget"
+
+  budget_filter {
+    projects        = ["projects/${google_project.strava_bot.number}"]
+    calendar_period = "MONTH"
+  }
+
+  amount {
+    specified_amount {
+      currency_code = var.budget_currency
+      units         = tostring(var.budget_amount)
+    }
+  }
+
+  # Actual spend past the cap is the alert that was asked for; the earlier
+  # actual threshold and the forecast rule are the warning shots before it.
+  dynamic "threshold_rules" {
+    for_each = var.budget_actual_thresholds
+
+    content {
+      threshold_percent = threshold_rules.value
+      spend_basis       = "CURRENT_SPEND"
+    }
+  }
+
+  threshold_rules {
+    threshold_percent = 1.0
+    spend_basis       = "FORECASTED_SPEND"
+  }
+
+  depends_on = [google_project_service.enabled]
 }

@@ -27,3 +27,8 @@ output "secret_ids" {
   description = "Secret Manager secret name per env var of §9 Configuration."
   value       = { for env_var, secret in google_secret_manager_secret.secrets : env_var => secret.secret_id }
 }
+
+output "monthly_budget" {
+  description = "Monthly billing budget guarding the public, paid endpoint."
+  value       = "${var.budget_amount} ${var.budget_currency} (${google_billing_budget.monthly.display_name})"
+}

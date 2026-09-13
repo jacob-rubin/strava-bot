@@ -16,3 +16,5 @@
 *.tfvars.json
 crash.log
 crash.*.log
+*.tfplan
+apply.log
