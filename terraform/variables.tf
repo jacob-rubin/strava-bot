@@ -37,3 +37,21 @@ variable "firestore_location" {
   type        = string
   default     = null
 }
+
+variable "budget_amount" {
+  description = "Monthly budget cap for the project, in var.budget_currency."
+  type        = number
+  default     = 10
+}
+
+variable "budget_currency" {
+  description = "Currency of the budget cap; must match the billing account's."
+  type        = string
+  default     = "USD"
+}
+
+variable "budget_actual_thresholds" {
+  description = "Actual-spend fractions of the cap that trigger an alert email."
+  type        = list(number)
+  default     = [0.5, 0.9, 1.0]
+}
