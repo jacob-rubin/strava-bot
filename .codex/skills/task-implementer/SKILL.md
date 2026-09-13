@@ -1,6 +1,6 @@
 ---
 name: task-implementer
-description: Execute one task runbook from docs/tasks in the strava-bot repo on its own branch, verify it, pause for review, then open a PR and update STATUS.md. Use when asked to implement, run, or pick up a task id (T04, T12, ...) or "the next task" in this repo. Not for ad-hoc edits that are not covered by a runbook.
+description: Execute one task runbook from docs/tasks in the strava-bot repo on its own branch, verify it, pause for review, then open a PR and update STATUS.md. Use when asked to implement, run, or pick up a task id (T04, T12, ...) or to do "the next task" / "the next one" / "pick up where we left off" in this repo — for those, scan docs/STATUS.md and run the earliest task not labeled done. Not for ad-hoc edits that are not covered by a runbook.
 metadata:
   short-description: Run one strava-bot task runbook end to end
 ---
@@ -13,9 +13,22 @@ The pipeline is: select -> load spec -> branch -> claim -> implement -> verify -
 
 ## 1. Select the task
 
-Use the task id the user names. Otherwise read `docs/STATUS.md` and take the first row that is not `done` whose dependencies (listed in `docs/tasks/README.md`) are all `done`.
+"next task", "the next one", "pick up where we left off", or an invocation with no id at all all mean the same thing: resolve the task yourself from `docs/STATUS.md`. Do not ask the user which task to run — the table answers it.
 
-Stop and report instead of proceeding when the chosen row is `blocked`, when any dependency is not `done`, or when an open item the runbook depends on is unresolved. Say which dependency is missing and which task resolves it.
+**Selection algorithm**
+
+1. Read the `## Tasks` table in `docs/STATUS.md`. That table is the only source of status: ignore git history, what happens to exist under `app/`, and any status-looking text inside a runbook.
+2. Walk its rows top to bottom, which is ascending task id. Treat `done` and `skipped` as finished and pass over them.
+3. The first row still standing is the candidate — the **earliest task not labeled `done`**. That is what "next task" resolves to.
+4. Act on the candidate according to its status:
+   - `not started` — run it, continuing from §2.
+   - `in progress` — resume it instead of starting something new. If branch `codex/<task-id>-<slug>` already exists, check it out and keep working there, skipping §3 and §4 because the claim commit is already in place; restart from the earliest runbook step whose output is missing. If no such branch exists, treat the row as `not started`.
+   - `blocked` — do not run it. Report what blocks it and which task clears it, name the earliest later row that is `not started` with all dependencies `done` as the alternative, and wait for the user to choose.
+5. Before implementing, check the candidate's dependencies in `docs/tasks/README.md`. If any dependency is not `done`, or the runbook turns on an unresolved row in STATUS's **Open items** table, stop and report: which dependency or open item is missing, which task resolves it, and the earliest row whose dependencies are all satisfied. Do not silently substitute that row.
+
+When the user names an id ("run T04", "do T12"), use exactly that task — but still apply step 5's dependency and open-item checks before starting.
+
+Then state the selection in one line before moving on: chosen id and title, its status in `docs/STATUS.md`, and, when you auto-selected, which rows you skipped as finished.
 
 ## 2. Load the spec
 
@@ -36,7 +49,7 @@ Before the first file edit:
 2. Sync `main` (`git switch main`, `git pull --ff-only`).
 3. Create `codex/<task-id>-<runbook-slug>` from `main` — the slug is the runbook filename without its id prefix and `.md`, so `docs/tasks/T05-config-module.md` gives `codex/T05-config-module`.
 
-If that branch already exists locally or on `origin`, stop and ask which branch to use. Never reuse, reset, or force-update an existing branch. All work, including the STATUS edits, happens on this branch — never commit to `main`.
+If that branch already exists locally or on `origin`, stop and ask which branch to use — unless you are resuming a row STATUS.md already marks `in progress` under §1 step 4, in which case that branch is the one to continue on. Never reset or force-update an existing branch. All work, including the STATUS edits, happens on this branch — never commit to `main`.
 
 ## 4. Claim the task
 
