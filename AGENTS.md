@@ -15,5 +15,6 @@ This repo is spec-first: `app/`, `scripts/`, and `tests/` don't exist yet (see [
 
 - Claims about the Strava API in the spec are tagged `[V]` (verified against Strava's docs) or `[U]` (unverified/contradicted). Never build a required path on a `[U]` claim — probe it at runtime and fall back.
 - Use strict TypeScript throughout `app/`, `scripts/`, and `tests/`; do not introduce Python tooling or implementations. Keep persisted Firestore field names in the snake_case forms defined by the spec.
+- When asked to create or update a skill, assume the repo-local `.codex/skills/` copy unless the user explicitly requests a global skill. Do not copy repo skills into `$CODEX_HOME/skills` by default.
 - Update [docs/STATUS.md](docs/STATUS.md) as tasks complete or open items resolve; it's expected to change every session, unlike the rest of `docs/`. Task runbooks themselves are static — never record status inside them.
 - If a change would violate a rule in [docs/CONSTRAINTS.md](docs/CONSTRAINTS.md), stop and re-read the linked spec section rather than routing around it.
