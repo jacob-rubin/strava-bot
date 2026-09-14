@@ -12,7 +12,6 @@ const SECRET_VALUES = {
   "strava-bot-path-token": "path-secret-value",
   "strava-client-secret": "client-secret-value",
   "strava-refresh-token": "refresh-secret-value",
-  "llm-api-key": "llm-secret-value",
 } as const;
 
 type SecretId = keyof typeof SECRET_VALUES;
@@ -90,13 +89,10 @@ describe("loadSettings", () => {
     await expect(settings.getStravaRefreshToken()).resolves.toBe(
       SECRET_VALUES["strava-refresh-token"],
     );
-    await expect(settings.getLlmApiKey()).resolves.toBe(
-      SECRET_VALUES["llm-api-key"],
-    );
     await settings.getIngestKey();
 
     expect(client.getProjectId).toHaveBeenCalledTimes(1);
-    expect(client.accessSecretVersion).toHaveBeenCalledTimes(5);
+    expect(client.accessSecretVersion).toHaveBeenCalledTimes(4);
     expect(client.accessSecretVersion).toHaveBeenCalledWith({
       name: "projects/test-project/secrets/strava-bot-ingest-key/versions/latest",
     });
@@ -138,7 +134,6 @@ describe("loadSettings", () => {
       settings.getIngestPathToken(),
       settings.getStravaClientSecret(),
       settings.getStravaRefreshToken(),
-      settings.getLlmApiKey(),
     ]);
 
     const serialized = `${JSON.stringify(settings)} ${String(settings)}`;
