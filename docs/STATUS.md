@@ -7,7 +7,7 @@ last-updated: 2026-09-13
 
 # Build status
 
-**Current focus:** [T04 — Scaffold the TypeScript repository skeleton](tasks/T04-repo-skeleton.md). Nothing in `app/`, `scripts/`, or `tests/` exists yet; `terraform/` holds the applied GCP infrastructure, including the Secret Manager secrets and their versions, and the `.gitignore` landed early by T01.
+**Current focus:** [T05 — Write `app/config.ts`](tasks/T05-config-module.md). T04 established the Node.js 24 LTS and strict TypeScript scaffold; T05 is the earliest unfinished task whose dependencies are now complete.
 
 This file is the **single source of truth for task status**. Task runbooks in [tasks/](tasks/README.md) are static; they carry no status of their own. Unlike the rest of `docs/`, this file is expected to change every work session — update it as tasks complete instead of inferring progress from the code or git log.
 
@@ -20,7 +20,7 @@ Status values: `not started` · `in progress` · `done` · `blocked` · `skipped
 | T01 | [Create the Strava API application](tasks/T01-strava-api-app.md) | 1 prove auth | human | done | `client_id` 278290; secret in a git-ignored `.env` pending T03. Added `.gitignore` (T04's deliverable) early to cover it |
 | T02 | [Stand up the GCP project with Terraform](tasks/T02-gcp-project.md) | 1 prove auth | agent + human step | done | Project `strava-bot-508419` (`us-central1`), imported rather than created — it already existed. State is remote in `gs://strava-bot-508419-tfstate`, the one resource made with `gcloud` ([ADR 0007](decisions/0007-terraform-for-gcp-infra.md) amended). T19's budget landed early; `storage`/`cloudbilling`/`billingbudgets`/`cloudresourcemanager` enabled beyond the runbook's five APIs |
 | T03 | [Create the Secret Manager secrets with Terraform](tasks/T03-secret-manager-secrets.md) | 1 prove auth | agent | done | Secret resources and IAM landed early in T02, so this added the versions: `INGEST_KEY`/`INGEST_PATH_TOKEN` from `random_password` (43 URL-safe chars, ~256 bits), `STRAVA_CLIENT_SECRET` from `TF_VAR_strava_client_secret`. Deviation: `llm-api-key` left empty at the user's request — no provider chosen yet, so its first version waits for [T22](tasks/T22-llm-provider.md), like the refresh token waits for T06 |
-| T04 | [Scaffold the TypeScript repository skeleton](tasks/T04-repo-skeleton.md) | 1 prove auth | agent | in progress | Language target changed before implementation; T04 now scaffolds Node.js 24 LTS + strict TypeScript ([ADR 0008](decisions/0008-typescript-node-runtime.md)) |
+| T04 | [Scaffold the TypeScript repository skeleton](tasks/T04-repo-skeleton.md) | 1 prove auth | agent | done | Node.js 24 LTS + strict TypeScript scaffold implemented per [ADR 0008](decisions/0008-typescript-node-runtime.md) |
 | T05 | [Write `app/config.ts`](tasks/T05-config-module.md) | 1 prove auth | agent | not started | |
 | T06 | [Write `scripts/authorize.ts`](tasks/T06-authorize-script.md) | 1 prove auth | agent + human step | not started | |
 | T07 | [Prove `POST /activities` with a manual curl](tasks/T07-manual-create-activity.md) | 1 prove auth | human | not started | observes open item 4 |
