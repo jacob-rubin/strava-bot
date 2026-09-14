@@ -1,38 +1,67 @@
 ---
 name: task-implementer
-description: Execute one task runbook from docs/tasks in the strava-bot repo on its own branch, verify it, pause for review, then open a PR and update STATUS.md. Use when asked to implement, run, or pick up a task id (T04, T12, ...) or to do "the next task" / "the next one" / "pick up where we left off" in this repo — for those, scan docs/STATUS.md and run the earliest task not labeled done. Not for ad-hoc edits that are not covered by a runbook.
+description: Execute one task runbook from docs/tasks in the strava-bot repo in its own dedicated Git worktree and branch, verify it, pause for review, then open a PR, update STATUS.md, and remove the worktree after approval. Use when asked to implement, run, or pick up a task id (T04, T12, ...) or to do "the next task" / "the next one" / "pick up where we left off" in this repo — for those, scan docs/STATUS.md and run the earliest task not labeled done. Not for ad-hoc edits that are not covered by a runbook.
 metadata:
-  short-description: Run one strava-bot task runbook end to end
+  short-description: Run one strava-bot task runbook in an isolated worktree
 ---
 
 # Task implementer
 
-Take exactly **one** runbook from `docs/tasks/` from selection through a pull request. One invocation = one task; stop after the PR is opened rather than starting the next one.
+Take exactly **one** runbook from `docs/tasks/` from selection through a pull request. One invocation = one task; stop after the PR and worktree cleanup rather than starting the next one.
 
-The pipeline is: select -> load spec -> branch -> claim -> implement -> verify -> **review gate (stop)** -> approve -> STATUS `done` + PR.
+The pipeline is: fetch + select -> create/resume worktree -> load spec -> claim -> implement -> verify -> **review gate (stop)** -> approve -> STATUS `done` + PR -> remove worktree.
 
 ## 1. Select the task
 
 "next task", "the next one", "pick up where we left off", or an invocation with no id at all all mean the same thing: resolve the task yourself from `docs/STATUS.md`. Do not ask the user which task to run — the table answers it.
 
+Before selecting, resolve the primary repository root with `git rev-parse --show-toplevel` and run `git fetch origin --prune` from it. Do not switch its branch, edit it, or require it to be clean. Read the merged baseline from `origin/main` (for example, `git show origin/main:docs/STATUS.md`) so a stale or task-specific primary checkout cannot select from old status.
+
 **Selection algorithm**
 
-1. Read the `## Tasks` table in `docs/STATUS.md`. That table is the only source of status: ignore git history, what happens to exist under `app/`, and any status-looking text inside a runbook.
+1. Read the `## Tasks` table in `docs/STATUS.md` from `origin/main`. That table is the only source of status: ignore git history, what happens to exist under `app/`, and any status-looking text inside a runbook.
 2. Walk its rows top to bottom, which is ascending task id. Treat `done` and `skipped` as finished and pass over them.
 3. The first row still standing is the candidate — the **earliest task not labeled `done`**. That is what "next task" resolves to.
-4. Act on the candidate according to its status:
+4. Determine the candidate's effective status:
    - `not started` — run it, continuing from §2.
-   - `in progress` — resume it instead of starting something new. If branch `codex/<task-id>-<slug>` already exists, check it out and keep working there, skipping §3 and §4 because the claim commit is already in place; restart from the earliest runbook step whose output is missing. If no such branch exists, treat the row as `not started`.
+   - `in progress` — resume it instead of starting something new.
+   - If the merged row says `not started` but local branch `codex/<task-id>-<slug>` exists and that branch's copy of `docs/STATUS.md` marks the row `in progress`, treat it as `in progress`. This is how an unpushed claim is resumed without relying on the primary checkout.
    - `blocked` — do not run it. Report what blocks it and which task clears it, name the earliest later row that is `not started` with all dependencies `done` as the alternative, and wait for the user to choose.
-5. Before implementing, check the candidate's dependencies in `docs/tasks/README.md`. If any dependency is not `done`, or the runbook turns on an unresolved row in STATUS's **Open items** table, stop and report: which dependency or open item is missing, which task resolves it, and the earliest row whose dependencies are all satisfied. Do not silently substitute that row.
+5. Check the candidate's dependencies in `docs/tasks/README.md` from the same ref used for its status. If any dependency is not `done`, or the runbook turns on an unresolved row in STATUS's **Open items** table, stop and report: which dependency or open item is missing, which task resolves it, and the earliest row whose dependencies are all satisfied. Do not silently substitute that row.
 
 When the user names an id ("run T04", "do T12"), use exactly that task — but still apply step 5's dependency and open-item checks before starting.
 
-Then state the selection in one line before moving on: chosen id and title, its status in `docs/STATUS.md`, and, when you auto-selected, which rows you skipped as finished.
+Then state the selection in one line before moving on: chosen id and title, its effective status, and, when you auto-selected, which rows you skipped as finished.
 
-## 2. Load the spec
+## 2. Create or resume the task worktree
 
-Read, in this order:
+Derive the slug from the runbook filename without its id prefix and `.md`, so `docs/tasks/T05-config-module.md` gives slug `config-module`. Use:
+
+- branch: `codex/<task-id>-<slug>`;
+- worktree container: a sibling of the primary checkout named `<repo-name>-worktrees`;
+- worktree path: `<worktree-container>/<task-id>-<slug>`.
+
+For this repo, T05 therefore uses `../strava-bot-worktrees/T05-config-module`. Resolve and retain absolute paths for both the primary repository and task worktree. Run every later task command in the task worktree unless a step explicitly says to use the primary repository.
+
+For a fresh task:
+
+1. Confirm the expected path neither exists nor appears in `git worktree list --porcelain`. If it does, stop and report the collision; do not delete or reuse an unregistered directory.
+2. Confirm the branch does not exist locally or on `origin`. If it does, stop and ask which branch to use; never reset or force-update it.
+3. Create the sibling container if needed, then create the branch and worktree directly from the fetched baseline: `git worktree add -b codex/<task-id>-<slug> <absolute-worktree-path> origin/main`.
+
+For an in-progress task:
+
+1. Locate the branch in `git worktree list --porcelain`.
+2. If it is already registered at the expected sibling path, resume there. Preserve and inspect any uncommitted task work; never discard it.
+3. If it is registered anywhere else, including the primary checkout, stop and report that path. Do not move files or remove that worktree automatically.
+4. If it is not registered, require the expected path to be absent, then attach the existing local branch with `git worktree add <absolute-worktree-path> codex/<task-id>-<slug>`. If there is no local branch, treat the task as fresh only when §1 found no valid in-progress claim.
+5. Before editing a clean resumed branch, merge the fetched `origin/main`: try `git merge --ff-only origin/main`, then use `git merge origin/main` only when the branch has diverged. Stop and report merge conflicts. If the worktree already has uncommitted task work, inspect it and finish or commit it before bringing in `origin/main`.
+
+Never use the primary checkout as the task worktree. All task edits and commits, including STATUS changes, happen in the dedicated worktree.
+
+## 3. Load the spec
+
+From the task worktree, read in this order:
 
 - the runbook itself — its **Read first**, **Deliverable**, **Steps**, and **Done when** sections;
 - every link under **Read first**; they are the spec and the runbook never restates them;
@@ -41,20 +70,11 @@ Read, in this order:
 
 Runbooks are static spec: never edit one, and never record status inside one.
 
-## 3. Create the task branch
-
-Before the first file edit:
-
-1. Confirm the working tree is clean (`git status --porcelain` is empty). If it is not, stop and report the dirty paths.
-2. Fetch first, then sync `main`: `git fetch origin --prune`, `git switch main`, `git pull --ff-only`. The previous task's PR is usually merged between sessions, so a local `main` that was current last time is stale now — branching from it silently drops the dependency this task builds on.
-3. Prove `main` is actually current before branching: `git rev-parse main origin/main` must print the same commit twice. If `main` cannot fast-forward, stop and report rather than merging or resetting it.
-4. Create `codex/<task-id>-<runbook-slug>` from that synced `main` — the slug is the runbook filename without its id prefix and `.md`, so `docs/tasks/T05-config-module.md` gives `codex/T05-config-module`.
-
-If that branch already exists locally or on `origin`, stop and ask which branch to use — unless you are resuming a row STATUS.md already marks `in progress` under §1 step 4, in which case that branch is the one to continue on. Bring it up to date with the `main` you just synced before writing any code: `git merge --ff-only main`, falling back to `git merge main` when the branch has diverged, so the resumed work sits on top of everything already merged. Stop and report if that merge conflicts. Never reset or force-update an existing branch. All work, including the STATUS edits, happens on this branch — never commit to `main`.
-
 ## 4. Claim the task
 
-First commit on the branch: flip the task's row in `docs/STATUS.md` to `in progress`, update **Current focus** if this is now the active task, and bump that file's `last-updated`. Commit message: `<task-id>: claim`.
+For a fresh task, the first commit in the task worktree flips the task's row in `docs/STATUS.md` to `in progress`, updates **Current focus** if this is now the active task, and bumps that file's `last-updated`. Commit message: `<task-id>: claim`.
+
+An in-progress task with an existing claim commit skips this step.
 
 ## 5. Implement
 
@@ -66,7 +86,7 @@ Build exactly what the runbook's **Deliverable** lists by following its **Steps*
 
 ## 6. Verify
 
-Run the runbook's **Done when** block verbatim. Install dependencies with `npm ci` when `node_modules/` is absent or stale, use the repo-local tools through npm scripts or `npm exec`, and verify that Node.js satisfies the `24.x` engine declared by T04. Do not install or invoke Python tooling for this project.
+Run the runbook's **Done when** block verbatim in the task worktree. Install dependencies with `npm ci` when `node_modules/` is absent or stale, use the repo-local tools through npm scripts or `npm exec`, and verify that Node.js satisfies the `24.x` engine declared by T04. Do not install or invoke Python tooling for this project.
 
 When the runbook has no automated check, verify end to end for real — start the service locally, issue the actual request, inspect the actual result — and capture the output. Never mark something verified from reading the code.
 
@@ -76,51 +96,45 @@ For runbooks whose **Executor** is `human` or `agent + human step` (T01, T02, T0
 
 ## 7. Review gate — stop here
 
-Commit the work on the branch, then **stop** and present:
+Commit the work in the task worktree, then **stop** and present:
 
-- task id and title, and the branch name;
-- files changed with a `git diff --stat` against `main`;
+- task id and title, branch name, and absolute worktree path;
+- files changed with `git diff --stat origin/main...HEAD`;
 - the **Done when** command and its verbatim output;
 - a constraint self-check: each rule in `docs/CONSTRAINTS.md` the change could plausibly touch, and how it is satisfied;
 - any deviation from the spec, and any open item in `docs/STATUS.md` the work answers.
 
-Until the user explicitly approves: do not push, do not open a PR, and do not flip STATUS to `done`. If the user asks for changes, amend on the same branch and return to the review gate.
+Until the user explicitly approves: do not push, do not open a PR, do not flip STATUS to `done`, and do not remove the worktree. If the user asks for changes, amend them in the same worktree and return to the review gate.
 
-## 8. On approval
+## 8. On approval: finish, open the PR, and clean up
+
+In the task worktree:
 
 1. Flip the task's row in `docs/STATUS.md` to `done`, adding a one-line note in the row if the work deviated from the spec.
 2. Record any open item the work resolved inline in its row (e.g. "resolved — `POST /activities` accepts `sport_type` alone, 2026-09-XX") rather than deleting the row.
 3. Update **Current focus** to the next task whose dependencies are all `done`, and bump `last-updated`.
-4. Commit (`<task-id>: mark done`), push the branch, and open the PR:
+4. Commit (`<task-id>: mark done`) and push with `git push -u origin codex/<task-id>-<slug>`.
+5. Open the PR:
 
 ```bash
 gh pr create --base main --head codex/<task-id>-<slug> --title "<task-id> — <runbook title>" --body-file <summary>
 ```
 
-The body carries the same summary shown at the review gate: what was built, the Done-when output, deviations, and resolved open items. Report the PR URL and stop. Do not merge, and do not start the next task.
+The body carries the same summary shown at the review gate: what was built, the Done-when output, deviations, and resolved open items. Keep any temporary summary file outside the task worktree, or remove it before cleanup.
+
+Only after `gh pr create` succeeds and returns the PR URL:
+
+1. Confirm `git status --porcelain` in the task worktree is empty. If it is dirty, preserve the worktree and report the dirty paths with the PR URL.
+2. Leave the task worktree before removing it. From the primary repository, run `git worktree remove <absolute-worktree-path>` without `--force`, then `git worktree prune`.
+3. Verify the path no longer exists and no worktree entry points to it. If removal or verification fails, do not force-delete anything; report the PR URL, the absolute path, and the failure.
+4. Preserve both the local branch and the pushed remote branch for PR follow-up.
+
+Report the PR URL and whether cleanup succeeded, then stop. Do not merge, delete either branch, or start the next task.
 
 ## Guardrails
 
-- Status lives only in `docs/STATUS.md` — never in a runbook, never inferred from git history.
+- Status lives only in `docs/STATUS.md` — never in a runbook, never inferred from commit history or file presence.
+- The primary checkout is a control checkout only; its current branch and unrelated dirty files must remain untouched.
+- Never force-remove a worktree, reset a task branch, or delete a colliding directory.
 - Never print, log, or commit a secret value or a `raw_text` payload. If a verification step would emit one, redact it before showing the output.
 - Stay inside the selected task's **Deliverable**; note anything else you noticed rather than fixing it here.
-
-## Keeping the installed copy in sync
-
-This repo holds the source of truth. Codex discovers skills from `$CODEX_HOME/skills`, so after editing this skill, re-copy it:
-
-```powershell
-$codexHome = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $HOME '.codex' }
-Copy-Item -Recurse -Force .codex/skills/task-implementer/* "$codexHome/skills/task-implementer/"
-```
-
-Two traps this form avoids, both of which fail silently:
-
-- `$env:CODEX_HOME` is usually **unset** in an ordinary shell, so `"$env:CODEX_HOME/skills/..."` expands to `/skills/...` and writes a stray `C:\skills\` at the drive root while the real skill stays stale. Resolve the fallback to `~/.codex` first.
-- Copying the **directory** onto a destination that already exists nests it (`task-implementer/task-implementer`) instead of updating it. Copy the directory's **contents** (`/*`) into the destination instead.
-
-Then confirm the installed copy actually changed, rather than assuming the copy landed:
-
-```powershell
-Select-String -Path "$codexHome/skills/task-implementer/SKILL.md" -Pattern '<a phrase you just added>'
-```
