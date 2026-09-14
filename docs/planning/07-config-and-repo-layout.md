@@ -14,7 +14,6 @@ last-updated: 2026-09-13
 | `STRAVA_CLIENT_ID`             | env            | not secret                   |
 | `STRAVA_CLIENT_SECRET`         | Secret Manager |                              |
 | `STRAVA_REFRESH_TOKEN`         | Secret Manager | **written back** on rotation |
-| `LLM_API_KEY`                  | Secret Manager |                              |
 | `LOCAL_TZ`                     | env            | `America/Chicago`            |
 | `STRAVA_USE_STRUCTURED_UPLOAD` | env            | default `false`              |
 | `MAX_BODY_BYTES`               | env            | default `65536`              |
