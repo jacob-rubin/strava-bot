@@ -18,3 +18,10 @@ crash.log
 crash.*.log
 *.tfplan
 apply.log
+
+# Node.js and TypeScript build output.
+node_modules/
+dist/
+
+# Vitest coverage output.
+coverage/
