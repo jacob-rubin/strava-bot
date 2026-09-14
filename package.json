@@ -1,0 +1,29 @@
+{
+  "name": "strava-bot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "dev": "tsx app/main.ts",
+    "start": "node --enable-source-maps dist/app/main.js"
+  },
+  "dependencies": {
+    "@google-cloud/firestore": "^9.1.0",
+    "@google-cloud/secret-manager": "^7.1.0",
+    "fastify": "^5.12.4",
+    "luxon": "^3.7.2"
+  },
+  "devDependencies": {
+    "@types/luxon": "^3.7.5",
+    "@types/node": "^24.13.4",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.0"
+  }
+}
