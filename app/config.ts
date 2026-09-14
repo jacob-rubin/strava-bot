@@ -4,8 +4,7 @@ type SecretName =
   | "INGEST_KEY"
   | "INGEST_PATH_TOKEN"
   | "STRAVA_CLIENT_SECRET"
-  | "STRAVA_REFRESH_TOKEN"
-  | "LLM_API_KEY";
+  | "STRAVA_REFRESH_TOKEN";
 
 interface SecretPayloadLike {
   data?: Uint8Array | string | null;
@@ -31,7 +30,6 @@ const SECRET_IDS: Readonly<Record<SecretName, string>> = {
   INGEST_PATH_TOKEN: "strava-bot-path-token",
   STRAVA_CLIENT_SECRET: "strava-client-secret",
   STRAVA_REFRESH_TOKEN: "strava-refresh-token",
-  LLM_API_KEY: "llm-api-key",
 };
 
 const DEFAULT_LOCAL_TZ = "America/Chicago";
@@ -156,10 +154,6 @@ export class Settings {
 
   getStravaRefreshToken(): Promise<string> {
     return this.#secrets.get("STRAVA_REFRESH_TOKEN");
-  }
-
-  getLlmApiKey(): Promise<string> {
-    return this.#secrets.get("LLM_API_KEY");
   }
 
   addStravaRefreshTokenVersion(value: string): Promise<void> {
