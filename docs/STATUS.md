@@ -57,11 +57,11 @@ Dependencies live in [tasks/README.md](tasks/README.md) and in each task's heade
 
 ## Open items
 
-| # | Item | Status | Resolved by |
+| # | Item — defined in [§15](planning/11-open-items-and-sources.md#15-open-items) | Status | Resolved by |
 | - | ---- | ------ | ----------- |
 | 1 | Does the share sheet deliver full text or only the URL? | unresolved — blocks T21 | [T20](tasks/T20-share-sheet-probe.md) |
 | 2 | Is the `link.strong.app` slug stable across shares? | unresolved — non-blocking, content-hash guard covers it either way; T20 answers it incidentally | [T20](tasks/T20-share-sheet-probe.md) |
-| 3 | Does `POST /uploads` accept JSON; is the field `data_type` or `dataType`? | unresolved — blocks T26 only | [T25](tasks/T25-probe-upload-json.md) |
+| 3 | Does `POST /uploads` accept JSON, and is the field `data_type` or `dataType`? | unresolved — blocks T26 only | [T25](tasks/T25-probe-upload-json.md) |
 | 4 | Does `POST /activities` require `type` alongside `sport_type`? | unresolved — non-blocking, spec says send both | [T07](tasks/T07-manual-create-activity.md) |
 | 5 | Set-format coverage beyond the six known variants | ongoing — non-blocking, `unparsed` retains anything new; T27 answers it continuously | [T27](tasks/T27-reparse-script.md) |
 

@@ -51,6 +51,7 @@ const FINISHED = new Set(["done", "skipped"]);
 const TASKS_DIR = "docs/status/tasks";
 const ITEMS_DIR = "docs/status/open-items";
 const RUNBOOKS = "docs/tasks/README.md";
+const SOURCES = "docs/planning/11-open-items-and-sources.md";
 const RENDERED = "docs/STATUS.md";
 
 function git(args: string[], cwd: string): string {
@@ -155,6 +156,19 @@ function loadItems(root: string, ref: string | null): OpenItem[] {
   return out.sort((a, b) => Number(a.id) - Number(b.id));
 }
 
+// The question itself is spec, not status: \u00a715 of the sources chunk defines it, and the
+// ledger carries only what changes. An `item:` field in a ledger file is a fallback for an
+// item that has no \u00a715 row yet.
+function loadItemTexts(root: string, ref: string | null): Map<string, string> {
+  const texts = new Map<string, string>();
+  for (const line of readAt(root, ref, SOURCES).split(/\r?\n/)) {
+    const match = /^\|\s*(\d+)\s*\|\s*(.+?)\s*\|/.exec(line);
+    if (match === null) continue;
+    texts.set(match[1] ?? "", match[2] ?? "");
+  }
+  return texts;
+}
+
 function isFinished(statuses: Map<string, TaskStatus>, id: string): boolean {
   return FINISHED.has(statuses.get(id)?.status ?? "not started");
 }
@@ -163,7 +177,12 @@ function unmetDeps(spec: TaskSpec, statuses: Map<string, TaskStatus>): string[] 
   return spec.deps.filter((d) => !isFinished(statuses, d));
 }
 
-function renderStatus(specs: TaskSpec[], statuses: Map<string, TaskStatus>, items: OpenItem[]): string {
+function renderStatus(
+  specs: TaskSpec[],
+  statuses: Map<string, TaskStatus>,
+  items: OpenItem[],
+  itemTexts: Map<string, string>,
+): string {
   const stamps = [...statuses.values()].map((s) => s.updated).filter((s) => s.length > 0);
   const lastUpdated = stamps.sort().at(-1) ?? "";
 
@@ -228,7 +247,7 @@ function renderStatus(specs: TaskSpec[], statuses: Map<string, TaskStatus>, item
   out.push("");
   out.push("## Open items");
   out.push("");
-  out.push("| # | Item | Status | Resolved by |");
+  out.push("| # | Item \u2014 defined in [\u00a715](planning/11-open-items-and-sources.md#15-open-items) | Status | Resolved by |");
   out.push("| - | ---- | ------ | ----------- |");
   const byId = new Map(specs.map((s) => [s.id, s]));
   for (const item of items) {
@@ -239,7 +258,8 @@ function renderStatus(specs: TaskSpec[], statuses: Map<string, TaskStatus>, item
       const spec = byId.get(id);
       return spec === undefined ? id : `[${id}](tasks/${spec.file})`;
     });
-    out.push(`| ${item.id} | ${cell(item.item)} | ${bits.map(cell).join(" \u2014 ")} | ${links.join(", ")} |`);
+    const question = itemTexts.get(item.id) ?? item.item;
+    out.push(`| ${item.id} | ${cell(question)} | ${bits.map(cell).join(" \u2014 ")} | ${links.join(", ")} |`);
   }
   out.push("");
   out.push("## Changing status");
@@ -352,7 +372,12 @@ function main(): void {
     return;
   }
 
-  const rendered = renderStatus(loadSpecs(root, null), loadStatuses(root, null), loadItems(root, null));
+  const rendered = renderStatus(
+    loadSpecs(root, null),
+    loadStatuses(root, null),
+    loadItems(root, null),
+    loadItemTexts(root, null),
+  );
   const target = join(root, RENDERED);
 
   if (command === "render") {

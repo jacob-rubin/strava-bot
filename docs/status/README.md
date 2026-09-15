@@ -56,7 +56,6 @@ live in [../tasks/README.md](../tasks/README.md); the renderer joins the two.
 ```markdown
 ---
 id: 3
-item: Does `POST /uploads` accept JSON; is the field `data_type` or `dataType`?
 status: unresolved
 detail: blocks T26 only
 resolved_by: T25
@@ -66,9 +65,15 @@ updated: 2026-09-14
 The answer, once known, with the date it was established.
 ```
 
-Flip `status` to `resolved` and write the answer in the body rather than deleting the file;
-[../planning/11-open-items-and-sources.md](../planning/11-open-items-and-sources.md) stays the
-historical record of what was in question.
+The question itself is **not** stored here. It is spec, and it lives in
+[\u00a715 of the sources chunk](../planning/11-open-items-and-sources.md#15-open-items), keyed by the
+same number; the renderer joins the two the way it joins tasks with their runbooks. Only
+\u00a715 says what is in question and how to probe it \u2014 this file says where it stands.
+
+- `detail` \u2014 the live qualifier shown next to the status, e.g. `blocks T26 only`.
+- `resolved_by` \u2014 the task ids expected to answer it.
+- Flip `status` to `resolved` and write the answer, with its date, in the body. Never delete the
+  file: the row is the record.
 
 ## Commands
 
