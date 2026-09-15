@@ -1,6 +1,6 @@
 ---
 status: authoritative
-last-updated: 2026-09-13
+last-updated: 2026-09-14
 ---
 
 ← [Index](PLANNING.md)
@@ -19,7 +19,7 @@ Domain terms used across the spec, each pointing at its defining section. Read t
 - **unparsed** — the retention kind for a set payload the parser doesn't recognize; kept with its raw text, never dropped. → [§3](planning/02-input-contract.md)
 - **history** — the Firestore `history/{exercise_name}` collection holding per-exercise rolling state for description context. → [§6](planning/04-persistence.md)
 - **e1rm** — estimated one-rep max, a derived per-exercise strength benchmark stored in `history`. The exact formula is not specified in the spec; define it when implementing. → [§6](planning/04-persistence.md)
-- **PR flags** — code-computed booleans (e.g. `is_weight_pr`) compared against `history` and passed to the model as explicit booleans; never model-computed. → [§6](planning/04-persistence.md), [§8](planning/06-llm-generation.md), [ADR 0005](decisions/0005-pr-detection-in-code.md)
+- **PR flags** — code-computed booleans (e.g. `is_weight_pr`) compared against `history` and consumed by the deterministic activity-text formatter. → [§6](planning/04-persistence.md), [§8](planning/06-activity-text.md), [ADR 0005](decisions/0005-pr-detection-in-code.md)
 - **[V] / [U]** — verification tags on Strava API claims: verified against Strava's docs vs. unverified/contradicted (probe at runtime; don't build a required path on it). → [PLANNING.md](PLANNING.md)
 - **path_token / X-Ingest-Key** — the two static auth secrets checked on ingest; a failed check returns 404 with an empty body. → [§5](planning/03-ingest-api.md)
 

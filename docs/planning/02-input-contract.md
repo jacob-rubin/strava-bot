@@ -1,6 +1,6 @@
 ---
 status: authoritative
-last-updated: 2026-09-13
+last-updated: 2026-09-14
 ---
 
 ← [Index](../PLANNING.md)
@@ -76,7 +76,7 @@ Negative weight in `assisted_reps` means machine assistance. Preserve the sign.
 
 ### Derived values
 
-- `volume` per set = `weight × reps`, `0` when either is absent. Units are the set's own unit; **do not normalize** for display or LLM input — Strava conversion happens only at [§7.4](05-strava-integration.md#74-creating-the-activity).
+- `volume` per set = `weight × reps`, `0` when either is absent. Units are the set's own unit; **do not normalize** for display or activity-text formatting — Strava conversion happens only at [§7.4](05-strava-integration.md#74-creating-the-activity).
 - `total_volume`, `total_reps`, `total_sets` sum **working sets only**.
 - `top_set` per exercise = working set with the greatest `(weight, reps)` lexicographically.
 
@@ -97,7 +97,7 @@ elapsed = received_at - started_at        if 0 < delta <= 14400
 
 ## 4. Parser module
 
-`app/parser.ts` implements this section: §3's grammar, its nine parsing rules, and every set-payload variant, producing the structures in [§6](04-persistence.md#data-model-for-generate). It is built from this spec — there is no pre-existing implementation to port.
+`app/parser.ts` implements this section: §3's grammar, its nine parsing rules, and every set-payload variant, producing the structures in [§6](04-persistence.md#data-model-for-activity-text). It is built from this spec — there is no pre-existing implementation to port.
 
 The normative definition of correct is [§12](09-acceptance-criteria.md#12-acceptance-criteria), whose parser and variant bullets cover warmup, bodyweight, assisted, timed, and distance payloads. If a §12 expectation turns out to be wrong, correct the spec deliberately rather than relaxing the test.
 

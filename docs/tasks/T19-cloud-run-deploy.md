@@ -1,6 +1,6 @@
 ---
 status: task
-last-updated: 2026-09-12
+last-updated: 2026-09-14
 ---
 
 ← [Task index](README.md) · [Status](../STATUS.md)
@@ -10,7 +10,7 @@ last-updated: 2026-09-12
 |            |     |
 | ---------- | --- |
 | Phase      | [§13 step 3](../planning/10-build-order-and-client.md#13-build-order) — ingest v1 |
-| Depends on | [T03](T03-secret-manager-secrets.md), [T17](T17-ingest-and-boundary-tests.md), [T18](T18-dockerfile-local-run.md) |
+| Depends on | [T03](T03-secret-manager-secrets.md), [T17](T17-ingest-tests.md), [T18](T18-dockerfile-local-run.md) |
 | Executor   | agent |
 | Blocked by | — |
 

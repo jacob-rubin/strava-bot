@@ -1,6 +1,6 @@
 ---
 status: task
-last-updated: 2026-09-12
+last-updated: 2026-09-14
 ---
 
 ← [Task index](README.md) · [Status](../STATUS.md)
@@ -29,9 +29,9 @@ Terraform (in `terraform/`) creates one Secret Manager secret per Secret-Manager
 
 1. In `terraform/`, declare a `google_secret_manager_secret` per Secret-Manager-sourced variable in [§9](../planning/07-config-and-repo-layout.md#9-configuration), using the secret names already referenced by the deploy config in [§5 Deployment](../planning/03-ingest-api.md#deployment).
 2. Generate `INGEST_KEY` and `INGEST_PATH_TOKEN` as high-entropy random strings (≥32 bytes, URL-safe for the path token) via `random_password` resources, and create their `google_secret_manager_secret_version`s from those — never from a file that could be committed.
-3. Create `STRAVA_CLIENT_SECRET` (from [T01](T01-strava-api-app.md)) and `LLM_API_KEY` (from the chosen provider) as secret versions from `TF_VAR_strava_client_secret` and `TF_VAR_llm_api_key`, supplied at apply time from the environment.
+3. Create the `STRAVA_CLIENT_SECRET` version from `TF_VAR_strava_client_secret`, supplied at apply time from the environment.
 4. Grant the Cloud Run runtime service account `roles/secretmanager.secretAccessor` on all of them, plus `roles/secretmanager.secretVersionAdder` on the refresh-token secret — [§9](../planning/07-config-and-repo-layout.md#9-configuration) requires the latter for the rotation write-back in [Constraint 8](../CONSTRAINTS.md).
-5. `terraform apply` with the two `TF_VAR_*` values passed from the environment, never from a file that could be committed.
+5. `terraform apply` with `TF_VAR_strava_client_secret` passed from the environment, never from a file that could be committed.
 
 ## Done when
 

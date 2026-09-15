@@ -1,6 +1,6 @@
 ---
 status: authoritative
-last-updated: 2026-09-10
+last-updated: 2026-09-14
 ---
 
 ← [Index](../PLANNING.md)
@@ -62,11 +62,11 @@ Fully documented and guaranteed. Build this first; it is the shipping path.
 POST https://www.strava.com/api/v3/activities
 Authorization: Bearer <access_token>
 
-name             (required)  string   ← LLM title
+name             (required)  string   ← deterministic title
 sport_type       (required)  string   = "WeightTraining"
 start_date_local (required)  string   ISO-8601, naive local
 elapsed_time     (required)  int      seconds, per §3
-description      (optional)  string   ← LLM description, plain text
+description      (optional)  string   ← deterministic description, plain text
 trainer          (optional)  int
 commute          (optional)  int
 ```
@@ -89,7 +89,7 @@ Implement behind a `STRAVA_USE_STRUCTURED_UPLOAD` flag, default **off**. Probe p
 2. Poll `GET /uploads/{uploadId}` at ≥1s intervals. **[V]** Response fields: `id`, `external_id`, `error`, `status`, `activity_id`. Terminal states are a non-null `error` or a non-null `activity_id`. Mean processing is under 2 seconds; time out at 30s.
 3. On any failure, fall back to the primary path in the same request. **A user who taps Share must always get an activity.**
 
-`POST /uploads` also accepts `name` and `description` **[V]**, so the LLM output flows through either path unchanged.
+`POST /uploads` also accepts `name` and `description` **[V]**, so the formatted activity text flows through either path unchanged.
 
 Set timestamps: Strong provides none. Distribute sets uniformly across `elapsed_time`; only monotonicity and in-range values matter. `category` / `category_subtype` need the exercise-name mapping deferred in [§6](04-persistence.md) — send null until that exists.
 
@@ -97,13 +97,13 @@ Set timestamps: Strong provides none. Distribute sets uniformly across `elapsed_
 
 Strava API Policy §5.3: _"You may not use the Strava API Materials or Strava Data, directly or indirectly, in connection with the development, training, evaluation, or operation of any AI Application."_ The clause explicitly extends to grounding, embedding generation, and retrieval-augmented generation.
 
-The mitigation is architectural: **no data originating from Strava ever reaches a model.** All prompt content derives from Strong. Strava is write-only.
+The MVP has no AI component, provider integration, or model credential. Strava is write-only, so no data originating from Strava can flow to an AI system.
 
 Enforce it in code, not by convention:
 
 1. Request `activity:write` only. No read scope is granted, so no Strava data can be fetched.
-2. The `llm` module must not import the `strava` module, and must not accept any value returned by it. Enforce with an import-boundary test ([§12](09-acceptance-criteria.md)).
-3. Never place a Strava response — including `activity_id`, upload `status`, or error strings — into a prompt.
+2. Keep the MVP free of AI SDKs, remote model calls, prompts, and model credentials ([§8](06-activity-text.md)).
+3. Any separately designed post-MVP AI enhancement must never receive a Strava response — including `activity_id`, upload `status`, or error strings.
 
 ### 7.6 Rate limits — **[V]**
 
@@ -120,4 +120,4 @@ Expected volume is ~5 requests/week — limits are irrelevant in practice. Log t
 
 ---
 
-← [Index](../PLANNING.md) · Previous: [Persistence](04-persistence.md) · Next: [Title and description generation](06-llm-generation.md)
+← [Index](../PLANNING.md) · Previous: [Persistence](04-persistence.md) · Next: [Activity title and description formatting](06-activity-text.md)

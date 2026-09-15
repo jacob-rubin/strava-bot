@@ -1,6 +1,6 @@
 ---
 status: authoritative
-last-updated: 2026-09-13
+last-updated: 2026-09-14
 ---
 
 ← [Index](../PLANNING.md) · [Status](../STATUS.md)
@@ -38,20 +38,20 @@ Task ids are stable. A task inserted later gets a suffixed id (`T13a`) rather th
 | [T11 — Derived values, dedupe key, elapsed](T11-parser-derived-values.md) | 2 parser | agent | T10 |
 | [T12 — Complete `tests/test_parser.ts`](T12-parser-tests.md) | 2 parser | agent | T11 |
 | [T13 — Write `app/store.ts` — `workouts`](T13-store-workouts.md) | 3 ingest v1 | agent | T05, T08, T11 |
-| [T14 — Write `app/llm.ts` — fallback template](T14-llm-fallback-template.md) | 3 ingest v1 | agent | T08 |
+| [T14 — Write `app/activity_text.ts` — deterministic activity text](T14-activity-text.md) | 3 ingest v1 | agent | T08 |
 | [T15 — Write `app/strava.ts`](T15-strava-client.md) | 3 ingest v1 | agent | T05, T07 |
 | [T16 — Write `app/main.ts`](T16-ingest-endpoint.md) | 3 ingest v1 | agent | T11, T13, T14, T15 |
-| [T17 — Ingest and boundary tests](T17-ingest-and-boundary-tests.md) | 3 ingest v1 | agent | T16 |
+| [T17 — Complete `tests/test_ingest.ts`](T17-ingest-tests.md) | 3 ingest v1 | agent | T16 |
 | [T18 — Buildpacks build and local run](T18-dockerfile-local-run.md) | 3 ingest v1 | agent | T16 |
 | [T19 — Deploy to Cloud Run via Cloud Build with a budget alert](T19-cloud-run-deploy.md) | 3 ingest v1 | agent | T03, T17, T18 |
 | [T20 — Probe what Strong's share sheet delivers](T20-share-sheet-probe.md) | 4 client | human | — |
 | [T21 — Wire the Shortcut and confirm the round trip](T21-shortcut-wiring-e2e.md) | 4 client | human | T19, T20 |
-| [T22 — Replace the template with the real LLM path](T22-llm-provider.md) | 5 LLM generation | agent | T14, T19 |
-| [T23 — Add the `history` collection](T23-history-writes.md) | 6 history and PRs | agent | T13 |
-| [T24 — Build `HistoryContext` and PR flags](T24-pr-flags-history-context.md) | 6 history and PRs | agent | T22, T23 |
-| [T25 — Probe `POST /uploads` for JSON sets](T25-probe-upload-json.md) | 7 optional | agent | T15 |
-| [T26 — Structured upload behind the flag](T26-structured-upload.md) | 7 optional | agent | T25 |
-| [T27 — Write `scripts/reparse.ts`](T27-reparse-script.md) | 7 optional tooling | agent | T11, T13 |
+| [T22 — Optional AI-generated activity text](T22-post-mvp-ai-text.md) | post-MVP optional | — | — |
+| [T23 — Add the `history` collection](T23-history-writes.md) | 5 history and PRs | agent | T13 |
+| [T24 — Build `HistoryContext` and PR flags](T24-pr-flags-history-context.md) | 5 history and PRs | agent | T14, T23 |
+| [T25 — Probe `POST /uploads` for JSON sets](T25-probe-upload-json.md) | 6 optional | agent | T15 |
+| [T26 — Structured upload behind the flag](T26-structured-upload.md) | 6 optional | agent | T25 |
+| [T27 — Write `scripts/reparse.ts`](T27-reparse-script.md) | 6 optional tooling | agent | T11, T13 |
 
 [T20](T20-share-sheet-probe.md) has no dependencies and can be run at any time — doing it early de-risks [T21](T21-shortcut-wiring-e2e.md).
 
