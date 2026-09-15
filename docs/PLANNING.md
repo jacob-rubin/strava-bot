@@ -1,13 +1,13 @@
 ---
 status: authoritative
-last-updated: 2026-09-13
+last-updated: 2026-09-14
 supersedes: [feasibility-and-architecture.md, ingest-path-design.md, share-sheet-ingest.md, workflow-spec.md]
 ---
 
 # Strava Bot — Implementation Spec
 
 **Status:** authoritative. Supersedes `feasibility-and-architecture.md`, `ingest-path-design.md`, `share-sheet-ingest.md`, and `workflow-spec.md` in this project.
-**Last updated:** 2026-09-12
+**Last updated:** 2026-09-14
 
 See also: [CONSTRAINTS.md](CONSTRAINTS.md) (non-negotiable rules, read before editing `app/`), [tasks/](tasks/README.md) (executable task runbooks), [STATUS.md](STATUS.md) (per-task progress), [decisions/](decisions/) (why, not just what), [glossary.md](glossary.md) (domain terms).
 
@@ -30,7 +30,7 @@ Start from the row matching what you're doing instead of the whole spec.
 | Ingest endpoint + auth | [§5](planning/03-ingest-api.md), [§9](planning/07-config-and-repo-layout.md), [ADR 0001](decisions/0001-static-bearer-secret.md) |
 | Persistence, dedupe, idempotency | [§6](planning/04-persistence.md), [ADR 0003](decisions/0003-content-hash-dedupe-guard.md) |
 | Strava calls + OAuth | [§7](planning/05-strava-integration.md), [ADR 0002](decisions/0002-no-strava-read-scope.md), [ADR 0004](decisions/0004-primary-then-structured-upload.md) |
-| LLM title/description | [§8](planning/06-llm-generation.md), [ADR 0005](decisions/0005-pr-detection-in-code.md) |
+| Activity title/description | [§8](planning/06-activity-text.md), [ADR 0005](decisions/0005-pr-detection-in-code.md) |
 | Error handling + logging | [§11](planning/08-error-handling.md), [ADR 0006](decisions/0006-no-retry-queue.md) |
 | Config, secrets, repo layout | [§9](planning/07-config-and-repo-layout.md) |
 | GCP infrastructure (Terraform) | [§5 Deployment](planning/03-ingest-api.md#deployment), [§10 Repository layout](planning/07-config-and-repo-layout.md#10-repository-layout), [ADR 0007](decisions/0007-terraform-for-gcp-infra.md) |
@@ -45,12 +45,12 @@ Always: [CONSTRAINTS.md](CONSTRAINTS.md) before editing `app/`; [glossary.md](gl
 2. [Input contract — Strong share text](planning/02-input-contract.md) — the exact text format Strong shares, its grammar, parsing rules, set-payload variants, and derived values (volume, duration). Includes the reference parser note.
 3. [Ingest API](planning/03-ingest-api.md) — the `POST /ingest/{path_token}` endpoint: auth, processing order, response codes, and Cloud Run deployment via Cloud Build (pipeline in Terraform).
 4. [Persistence](planning/04-persistence.md) — Firestore schema for `workouts` (dedupe/idempotency) and `history` (per-exercise rolling state).
-5. [Strava integration](planning/05-strava-integration.md) — app setup, OAuth, token refresh, creating activities (primary path + [U] structured-upload path), the AI-training policy constraint, and rate limits.
-6. [Title and description generation](planning/06-llm-generation.md) — the LLM `generate()` interface, input/output constraints, and the mandatory deterministic fallback.
+5. [Strava integration](planning/05-strava-integration.md) — app setup, OAuth, token refresh, creating activities (primary path + [U] structured-upload path), the AI-use policy constraint, and rate limits.
+6. [Activity title and description formatting](planning/06-activity-text.md) — the local deterministic formatter and its input/output constraints.
 7. [Configuration and repository layout](planning/07-config-and-repo-layout.md) — env vars/secrets and the `terraform/`, `app/`, `scripts/`, `tests/` file layout.
 8. [Error handling](planning/08-error-handling.md) — the condition → behavior table and logging rules.
 9. [Acceptance criteria](planning/09-acceptance-criteria.md) — parser, ingest, boundary, and end-to-end test expectations.
-10. [Build order and client](planning/10-build-order-and-client.md) — the 7-step build sequence and the iOS Shortcut setup.
+10. [Build order and client](planning/10-build-order-and-client.md) — the 6-step MVP build sequence and the iOS Shortcut setup.
 11. [Open items and sources](planning/11-open-items-and-sources.md) — unresolved `[U]` items and how to resolve each, plus the source documents this spec was verified against.
 
 ## Execution

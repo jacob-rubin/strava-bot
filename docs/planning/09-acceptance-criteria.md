@@ -1,6 +1,6 @@
 ---
 status: authoritative
-last-updated: 2026-09-13
+last-updated: 2026-09-14
 ---
 
 ← [Index](../PLANNING.md)
@@ -34,13 +34,13 @@ last-updated: 2026-09-13
 - Same payload twice → one Strava activity; second response begins `already posted:`.
 - Two shares of the same workout with _different_ slugs → still one activity (content-hash guard).
 - Unparseable body → 400, and a Firestore doc exists with `raw_text` populated.
-- LLM stubbed to raise → activity is still created with fallback text.
+- Activity is created with deterministic text containing real workout numbers.
 - Strava stubbed to 429 → 502, `status="failed"`, no partial state.
 
-**Boundaries:**
+**MVP scope:**
 
-- `tests/test_boundaries.ts` asserts `app/llm.ts` has no transitive import path to `app/strava.ts`.
-- Grep-style assertion: no Strava response object is referenced within `app/llm.ts`.
+- Activity text formatting is local and deterministic.
+- No AI SDK, remote model call, prompt, or model credential is required.
 
 **End-to-end (manual, once):**
 

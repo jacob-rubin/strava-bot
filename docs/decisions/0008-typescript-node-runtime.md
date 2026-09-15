@@ -1,6 +1,6 @@
 ---
 status: authoritative
-last-updated: 2026-09-13
+last-updated: 2026-09-14
 ---
 
 ← [Decisions](README.md) · [Index](../PLANNING.md)
@@ -13,6 +13,6 @@ last-updated: 2026-09-13
 
 Persisted Firestore field names and external API field names remain snake_case where the existing contracts specify them. TypeScript function names use idiomatic camelCase unless an external API controls the name.
 
-**Consequences.** Type errors and nullability issues are caught before deployment, and service code and operational scripts share one toolchain. The project now carries a compile step and TypeScript development dependencies. The security boundary remains an explicit test: `app/llm.ts` may have no direct or transitive import path to `app/strava.ts`.
+**Consequences.** Type errors and nullability issues are caught before deployment, and service code and operational scripts share one toolchain. The project now carries a compile step and TypeScript development dependencies.
 
 → [Repository layout §10](../planning/07-config-and-repo-layout.md#10-repository-layout) · [Task T04](../tasks/T04-repo-skeleton.md)

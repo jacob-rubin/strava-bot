@@ -1,6 +1,6 @@
 ---
 status: task
-last-updated: 2026-09-13
+last-updated: 2026-09-14
 ---
 
 ← [Task index](README.md) · [Status](../STATUS.md)
@@ -9,7 +9,7 @@ last-updated: 2026-09-13
 
 |            |     |
 | ---------- | --- |
-| Phase      | [§13 step 7](../planning/10-build-order-and-client.md#13-build-order) — optional structured upload |
+| Phase      | [§13 step 6](../planning/10-build-order-and-client.md#13-build-order) — optional structured upload |
 | Depends on | [T25](T25-probe-upload-json.md) |
 | Executor   | agent |
 | Blocked by | only if [T25](T25-probe-upload-json.md) succeeded |
