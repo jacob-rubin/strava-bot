@@ -34,4 +34,4 @@ refresh token was written to Secret Manager.
 
 ## After the user replies
 
-Resume at the verification step with their result as the evidence. If the reply answers an open item in `docs/STATUS.md`, record it inline in that row during the approval step. If the reply is ambiguous or a step failed, ask one targeted follow-up rather than guessing.
+Resume at the verification step with their result as the evidence. If the reply answers an open item, record it in that item's own file under `docs/status/open-items/` during the approval step — never in `docs/STATUS.md`, which is generated. If the reply is ambiguous or a step failed, ask one targeted follow-up rather than guessing.

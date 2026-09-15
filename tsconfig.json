@@ -17,6 +17,7 @@
     "app/**/*.ts",
     "scripts/**/*.ts",
     "tests/**/*.ts",
+    "tools/**/*.ts",
     "vitest.config.ts"
   ],
   "exclude": ["dist", "node_modules"]
