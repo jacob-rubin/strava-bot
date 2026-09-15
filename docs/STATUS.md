@@ -15,7 +15,7 @@ This is a **rendered view**. Status lives one file per task in [status/tasks/](s
 
 **Next up:** [T12 — Complete `tests/test_parser.ts`](tasks/T12-parser-tests.md) — the earliest task that is not finished and whose dependencies are all `done` on `main`.
 
-**Ready now:** [T12](tasks/T12-parser-tests.md) (agent) · [T13](tasks/T13-store-workouts.md) (agent) · [T14](tasks/T14-activity-text.md) (agent) · [T15](tasks/T15-strava-client.md) (agent) · [T20](tasks/T20-share-sheet-probe.md) (human)
+**Ready now:** [T12](tasks/T12-parser-tests.md) (agent) · [T13](tasks/T13-store-workouts.md) (agent) · [T15](tasks/T15-strava-client.md) (agent) · [T20](tasks/T20-share-sheet-probe.md) (human)
 
 A task already claimed by an in-flight branch still shows as `not started` here until its PR merges. Run `npm run status:next` for the live picture, which folds in `codex/<id>-*` branches.
 
@@ -38,7 +38,7 @@ Status values: `not started` · `in progress` · `done` · `blocked` · `skipped
 | T11 | [Derived values, dedupe key, elapsed](tasks/T11-parser-derived-values.md) | 2 parser | agent | done |  |
 | T12 | [Complete `tests/test_parser.ts`](tasks/T12-parser-tests.md) | 2 parser | agent | not started |  |
 | T13 | [Write `app/store.ts` — `workouts`](tasks/T13-store-workouts.md) | 3 ingest v1 | agent | not started |  |
-| T14 | [Write `app/activity_text.ts` — deterministic activity text](tasks/T14-activity-text.md) | 3 ingest v1 | agent | not started |  |
+| T14 | [Write `app/activity_text.ts` — deterministic activity text](tasks/T14-activity-text.md) | 3 ingest v1 | agent | done |  |
 | T15 | [Write `app/strava.ts`](tasks/T15-strava-client.md) | 3 ingest v1 | agent | not started |  |
 | T16 | [Write `app/main.ts`](tasks/T16-ingest-endpoint.md) | 3 ingest v1 | agent | not started |  |
 | T17 | [Complete `tests/test_ingest.ts`](tasks/T17-ingest-tests.md) | 3 ingest v1 | agent | not started |  |
