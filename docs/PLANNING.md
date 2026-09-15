@@ -29,7 +29,7 @@ Start from the row matching what you're doing instead of the whole spec.
 | Parser | [§3](planning/02-input-contract.md), [§12](planning/09-acceptance-criteria.md) |
 | Ingest endpoint + auth | [§5](planning/03-ingest-api.md), [§9](planning/07-config-and-repo-layout.md), [ADR 0001](decisions/0001-static-bearer-secret.md) |
 | Persistence, dedupe, idempotency | [§6](planning/04-persistence.md), [ADR 0003](decisions/0003-content-hash-dedupe-guard.md) |
-| Strava calls + OAuth | [§7](planning/05-strava-integration.md), [ADR 0002](decisions/0002-no-strava-read-scope.md), [ADR 0004](decisions/0004-primary-then-structured-upload.md) |
+| Strava calls + OAuth | [§7](planning/05-strava-integration.md), [ADR 0009](decisions/0009-allow-returned-read-scope.md), [ADR 0004](decisions/0004-primary-then-structured-upload.md) |
 | Activity title/description | [§8](planning/06-activity-text.md), [ADR 0005](decisions/0005-pr-detection-in-code.md) |
 | Error handling + logging | [§11](planning/08-error-handling.md), [ADR 0006](decisions/0006-no-retry-queue.md) |
 | Config, secrets, repo layout | [§9](planning/07-config-and-repo-layout.md) |

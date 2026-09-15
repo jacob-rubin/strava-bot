@@ -1,6 +1,6 @@
 ---
 status: task
-last-updated: 2026-09-13
+last-updated: 2026-09-14
 ---
 
 ← [Task index](README.md) · [Status](../STATUS.md)
@@ -17,8 +17,8 @@ last-updated: 2026-09-13
 ## Read first
 
 - [§7.2 One-time authorization](../planning/05-strava-integration.md#72-one-time-authorization--v) — the authorize URL, the scope, and the exchange call
-- [Constraint 2](../CONSTRAINTS.md) — `activity:write` only, no read scope
-- [ADR 0002](../decisions/0002-no-strava-read-scope.md)
+- [Constraint 2](../CONSTRAINTS.md) — `activity:write` requested; an additional returned `read` scope is allowed but never used
+- [ADR 0009](../decisions/0009-allow-returned-read-scope.md)
 
 ## Deliverable
 
@@ -27,7 +27,7 @@ last-updated: 2026-09-13
 
 ## Steps
 
-1. Build the authorize URL exactly as specified in [§7.2](../planning/05-strava-integration.md#72-one-time-authorization--v), with `scope=activity:write` and nothing else. Requesting any read scope violates [Constraint 2](../CONSTRAINTS.md).
+1. Build the authorize URL exactly as specified in [§7.2](../planning/05-strava-integration.md#72-one-time-authorization--v), with `scope=activity:write`. If the callback or token response also grants `read` (for example `scope=read,activity:write`), accept it per [Constraint 2](../CONSTRAINTS.md); do not treat it as a failure.
 2. **Human step:** open the printed URL, approve, and paste back the `code` from the `localhost` redirect (the redirect will fail to load — only the query string matters).
 3. Exchange the code per [§7.2](../planning/05-strava-integration.md#72-one-time-authorization--v) and write `refresh_token` to Secret Manager via the [T05](T05-config-module.md) helper. Print nothing but a success line — no token values.
 4. Keep this out of `app/`: [§7.2](../planning/05-strava-integration.md#72-one-time-authorization--v) specifies it is a local script, not part of the service.
