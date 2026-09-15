@@ -1,6 +1,6 @@
 ---
 status: authoritative
-last-updated: 2026-09-13
+last-updated: 2026-09-14
 ---
 
 ← [Index](../PLANNING.md)
@@ -14,7 +14,6 @@ last-updated: 2026-09-13
 | `STRAVA_CLIENT_ID`             | env            | not secret                   |
 | `STRAVA_CLIENT_SECRET`         | Secret Manager |                              |
 | `STRAVA_REFRESH_TOKEN`         | Secret Manager | **written back** on rotation |
-| `LLM_API_KEY`                  | Secret Manager |                              |
 | `LOCAL_TZ`                     | env            | `America/Chicago`            |
 | `STRAVA_USE_STRUCTURED_UPLOAD` | env            | default `false`              |
 | `MAX_BODY_BYTES`               | env            | default `65536`              |
@@ -33,7 +32,7 @@ strava-bot/
     parser.ts               # Strong share-text parser
     models.ts               # Workout, Exercise, WorkoutSet, summaries
     store.ts                # Firestore: workouts, history
-    llm.ts                  # generate() — MUST NOT import strava.ts
+    activity_text.ts        # deterministic title + description formatter
     strava.ts               # tokens, createActivity, uploadStructured
     config.ts               # env + Secret Manager
   scripts/
@@ -46,10 +45,9 @@ strava-bot/
     test_models.ts
     test_parser.ts
     test_store.ts
-    test_llm.ts
+    test_activity_text.ts
     test_strava.ts
     test_ingest.ts
-    test_boundaries.ts      # import-boundary enforcement
   terraform/
     main.tf                 # project, APIs, Firestore, secrets, IAM, Cloud Build trigger, budget (§5, ADR 0007)
     variables.tf
@@ -76,4 +74,4 @@ Configure Vitest to include `tests/test_*.ts`. Configure TypeScript with `strict
 
 ---
 
-← [Index](../PLANNING.md) · Previous: [Title and description generation](06-llm-generation.md) · Next: [Error handling](08-error-handling.md)
+← [Index](../PLANNING.md) · Previous: [Activity title and description formatting](06-activity-text.md) · Next: [Error handling](08-error-handling.md)

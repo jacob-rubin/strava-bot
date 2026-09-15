@@ -1,6 +1,6 @@
 ---
 status: authoritative
-last-updated: 2026-09-13
+last-updated: 2026-09-14
 ---
 
 ← [Index](../PLANNING.md)
@@ -40,7 +40,7 @@ Firestore, native mode. Two collections.
 
 ### `history/{exercise_name}`
 
-Rolling per-exercise state for description context ([§8](06-llm-generation.md)). Written after a successful post.
+Rolling per-exercise state for deterministic description context ([§8](06-activity-text.md)). Written after a successful post.
 
 ```
 { exercise_name, best_e1rm, best_top_set: {weight, unit, reps},
@@ -50,9 +50,9 @@ Rolling per-exercise state for description context ([§8](06-llm-generation.md))
 
 Exercise-name → Strava taxonomy mapping is **not required** for the primary path ([§7.4](05-strava-integration.md#74-creating-the-activity)). Defer it to Phase 2.
 
-### Data model for `generate()`
+### Data model for activity text
 
-`app/models.ts` defines these TypeScript types and derives them from the two collections above; they are the only inputs [§8](06-llm-generation.md) may see. They are not persisted directly — build them per request from `parsed` (for `WorkoutSummary`) and `history/{exercise_name}` documents (for `HistoryContext`). Persisted Firestore fields retain the snake_case names shown here.
+`app/models.ts` defines these TypeScript types and derives them from the two collections above. The deterministic formatter in [§8](06-activity-text.md) consumes them. They are not persisted directly — build them per request from `parsed` (for `WorkoutSummary`) and `history/{exercise_name}` documents (for `HistoryContext`). Persisted Firestore fields retain the snake_case names shown here.
 
 ```typescript
 export type TopSet = {
@@ -92,7 +92,7 @@ export interface ExerciseHistory {
 }
 ```
 
-`HistoryContext` is empty (`per_exercise` and `pr_flags` both `{}`) for an exercise never seen before — [§8](06-llm-generation.md)'s "omit comparative claims" rule applies per-exercise, not to the whole call.
+`HistoryContext` is empty (`per_exercise` and `pr_flags` both `{}`) for an exercise never seen before — [§8](06-activity-text.md)'s "omit comparative claims" rule applies per-exercise, not to the whole call.
 
 ---
 

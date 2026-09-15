@@ -1,6 +1,6 @@
 ---
 status: task
-last-updated: 2026-09-13
+last-updated: 2026-09-14
 ---
 
 ← [Task index](README.md) · [Status](../STATUS.md)
@@ -9,7 +9,7 @@ last-updated: 2026-09-13
 
 |            |     |
 | ---------- | --- |
-| Phase      | [§13 step 6](../planning/10-build-order-and-client.md#13-build-order) — history and PRs |
+| Phase      | [§13 step 5](../planning/10-build-order-and-client.md#13-build-order) — history and PRs |
 | Depends on | [T13](T13-store-workouts.md) |
 | Executor   | agent |
 | Blocked by | — |
@@ -17,7 +17,7 @@ last-updated: 2026-09-13
 ## Read first
 
 - [§6 `history/{exercise_name}`](../planning/04-persistence.md#6-persistence) — the document shape and when it is written
-- [§6 Data model for `generate()`](../planning/04-persistence.md#data-model-for-generate)
+- [§6 Data model for activity text](../planning/04-persistence.md#data-model-for-activity-text)
 
 ## Deliverable
 
@@ -27,7 +27,7 @@ last-updated: 2026-09-13
 
 1. Implement the [§6](../planning/04-persistence.md#6-persistence) `history` document: `best_e1rm`, `best_top_set`, `last_performed`, and `recent` capped at the last 10 entries.
 2. Write history only after the Strava post succeeds, per [§6](../planning/04-persistence.md#6-persistence) — a failed post must not advance a personal best.
-3. Key documents by the base exercise name with equipment stripped, matching [§3 parsing rule 7](../planning/02-input-contract.md#parsing-rules) and the `ExerciseSummary.name` definition in [§6](../planning/04-persistence.md#data-model-for-generate).
+3. Key documents by the base exercise name with equipment stripped, matching [§3 parsing rule 7](../planning/02-input-contract.md#parsing-rules) and the `ExerciseSummary.name` definition in [§6](../planning/04-persistence.md#data-model-for-activity-text).
 4. Skip the Strava-taxonomy mapping — [§6](../planning/04-persistence.md#6-persistence) explicitly defers it to Phase 2.
 
 ## Done when
