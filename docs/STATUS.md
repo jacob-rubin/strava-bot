@@ -7,7 +7,7 @@ last-updated: 2026-09-14
 
 # Build status
 
-**Current focus:** [T06 — Write `scripts/authorize.ts`](tasks/T06-authorize-script.md). T05 established validated, secret-safe configuration and the refresh-token write path; T06 is the earliest unfinished task whose dependencies are now complete.
+**Current focus:** [T08 — Write `app/models.ts`](tasks/T08-models-module.md). T06 and T07 are the earliest unfinished rows but both need a human step, so phase 2 starts in parallel: T08 depends only on T04, which is `done`.
 
 This file is the **single source of truth for task status**. Task runbooks in [tasks/](tasks/README.md) are static; they carry no status of their own. Unlike the rest of `docs/`, this file is expected to change every work session — update it as tasks complete instead of inferring progress from the code or git log.
 
@@ -24,7 +24,7 @@ Status values: `not started` · `in progress` · `done` · `blocked` · `skipped
 | T05 | [Write `app/config.ts`](tasks/T05-config-module.md) | 1 prove auth | agent | done | Review removed the premature `LLM_API_KEY` config and Terraform secret; the MVP has no AI/model dependency |
 | T06 | [Write `scripts/authorize.ts`](tasks/T06-authorize-script.md) | 1 prove auth | agent + human step | not started | |
 | T07 | [Prove `POST /activities` with a manual curl](tasks/T07-manual-create-activity.md) | 1 prove auth | human | not started | observes open item 4 |
-| T08 | [Write `app/models.ts`](tasks/T08-models-module.md) | 2 parser | agent | not started | |
+| T08 | [Write `app/models.ts`](tasks/T08-models-module.md) | 2 parser | agent | in progress | |
 | T09 | [Add the share-text fixtures](tasks/T09-fixtures.md) | 2 parser | agent | not started | |
 | T10 | [Write `app/parser.ts`](tasks/T10-parser-core.md) | 2 parser | agent | not started | |
 | T11 | [Derived values, dedupe key, elapsed](tasks/T11-parser-derived-values.md) | 2 parser | agent | not started | |
