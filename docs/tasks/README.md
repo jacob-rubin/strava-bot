@@ -9,15 +9,16 @@ last-updated: 2026-09-14
 
 One file per atomic task: what to read, what to produce, and a check that proves it is done. Each is scoped to a single working session with one verifiable outcome.
 
-**Status is not recorded here.** [STATUS.md](../STATUS.md) is the single source of truth for what is done, in progress, or not started. These files are static spec and are not edited while executing a task.
+**Status is not recorded here.** It lives one file per task in [../status/](../status/README.md), rendered into [STATUS.md](../STATUS.md). These files are static spec and are not edited while executing a task.
 
 ## How to run a task
 
-1. Open [STATUS.md](../STATUS.md), pick the first task that is not `done` and whose dependencies are all `done`, and flip it to `in progress`.
-2. Read [CONSTRAINTS.md](../CONSTRAINTS.md) in full before any task that touches `app/`.
-3. Read the task file's **Read first** links. They are the spec; the task file never restates them.
-4. Do the **Steps**, then run the **Done when** check.
-5. Flip the row in [STATUS.md](../STATUS.md) to `done`, noting any deviation in one line.
+1. Run `npm run status:next`. It picks the earliest task that is unfinished, unclaimed, and has every dependency `done` on `origin/main`.
+2. Claim it: branch `codex/<id>-<slug>` in its own worktree, flip `../status/tasks/<id>.md` to `in progress`, and push the branch. The pushed branch is the claim other agents see.
+3. Read [CONSTRAINTS.md](../CONSTRAINTS.md) in full before any task that touches `app/`.
+4. Read the task file's **Read first** links. They are the spec; the task file never restates them.
+5. Do the **Steps**, then run the **Done when** check.
+6. Flip `../status/tasks/<id>.md` to `done`, noting any deviation in one line, and open the PR. Never edit [STATUS.md](../STATUS.md) — it is generated.
 
 Task ids are stable. A task inserted later gets a suffixed id (`T13a`) rather than renumbering the ones after it.
 
