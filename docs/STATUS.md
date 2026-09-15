@@ -13,9 +13,9 @@ last-updated: 2026-09-15
 
 This is a **rendered view**. Status lives one file per task in [status/tasks/](status/README.md) so that tasks running in parallel never edit the same file. Regenerate with `npm run status:write`.
 
-**Next up:** [T11 — Derived values, dedupe key, elapsed](tasks/T11-parser-derived-values.md) — the earliest task that is not finished and whose dependencies are all `done` on `main`.
+**Next up:** [T12 — Complete `tests/test_parser.ts`](tasks/T12-parser-tests.md) — the earliest task that is not finished and whose dependencies are all `done` on `main`.
 
-**Ready now:** [T11](tasks/T11-parser-derived-values.md) (agent) · [T14](tasks/T14-activity-text.md) (agent) · [T15](tasks/T15-strava-client.md) (agent) · [T20](tasks/T20-share-sheet-probe.md) (human)
+**Ready now:** [T12](tasks/T12-parser-tests.md) (agent) · [T13](tasks/T13-store-workouts.md) (agent) · [T14](tasks/T14-activity-text.md) (agent) · [T15](tasks/T15-strava-client.md) (agent) · [T20](tasks/T20-share-sheet-probe.md) (human)
 
 A task already claimed by an in-flight branch still shows as `not started` here until its PR merges. Run `npm run status:next` for the live picture, which folds in `codex/<id>-*` branches.
 
@@ -35,7 +35,7 @@ Status values: `not started` · `in progress` · `done` · `blocked` · `skipped
 | T08 | [Write `app/models.ts`](tasks/T08-models-module.md) | 2 parser | agent | done | Types-only module. Union variants null the measurements they don't carry (§12 requires `weight=null` on `kind="reps"`); `Workout` also carries `share_slug` and `warnings` so §3 rules 5 and 3 are representable |
 | T09 | [Add the share-text fixtures](tasks/T09-fixtures.md) | 2 parser | agent | done |  |
 | T10 | [Write `app/parser.ts`](tasks/T10-parser-core.md) | 2 parser | agent | done | Per-set `volume` is left at `0` for T11, which owns §3 derived values; a set line before any exercise line records a line-numbered warning rather than retaining the line content, so warnings stay safe to log under constraint 7. |
-| T11 | [Derived values, dedupe key, elapsed](tasks/T11-parser-derived-values.md) | 2 parser | agent | not started |  |
+| T11 | [Derived values, dedupe key, elapsed](tasks/T11-parser-derived-values.md) | 2 parser | agent | done |  |
 | T12 | [Complete `tests/test_parser.ts`](tasks/T12-parser-tests.md) | 2 parser | agent | not started |  |
 | T13 | [Write `app/store.ts` — `workouts`](tasks/T13-store-workouts.md) | 3 ingest v1 | agent | not started |  |
 | T14 | [Write `app/activity_text.ts` — deterministic activity text](tasks/T14-activity-text.md) | 3 ingest v1 | agent | not started |  |
