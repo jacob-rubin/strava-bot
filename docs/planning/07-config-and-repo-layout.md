@@ -52,6 +52,8 @@ strava-bot/
     main.tf                 # project, APIs, Firestore, secrets, IAM, Cloud Build trigger, budget (§5, ADR 0007)
     variables.tf
     outputs.tf
+  tools/
+    status.ts               # renders docs/STATUS.md from the docs/status/ ledger; no deps, runs on bare node
   package.json
   package-lock.json
   tsconfig.json
@@ -69,6 +71,9 @@ Runtime dependencies are `fastify`, `@google-cloud/firestore`, `@google-cloud/se
 | `test`      | `vitest run`                                |
 | `dev`       | `tsx app/main.ts`                            |
 | `start`     | `node --enable-source-maps dist/app/main.js` |
+| `status`    | `node tools/status.ts next`                  |
+| `status:write` | `node tools/status.ts write`              |
+| `status:check` | `node tools/status.ts check`              |
 
 Configure Vitest to include `tests/test_*.ts`. Configure TypeScript with `strict: true`, `noUncheckedIndexedAccess: true`, Node-compatible ESM, `rootDir: "."`, and `outDir: "dist"`. The service entrypoint must bind to `0.0.0.0` on `process.env.PORT ?? 8080`; this makes the npm `start` script compatible with Cloud Run and Google's Node.js buildpack.
 
