@@ -1,6 +1,6 @@
 ---
 status: authoritative
-last-updated: 2026-09-14
+last-updated: 2026-09-15
 ---
 
 ← [Index](../PLANNING.md)
@@ -26,7 +26,7 @@ https://www.strava.com/oauth/authorize
   &scope=activity:write
 ```
 
-**Request `scope=activity:write`; an additional returned `read` scope is accepted.** **[V]** `activity:write` grants "access to create manual activities and uploads, and access to edit any activities that are visible to the app." Strava may also grant `read` and report it in the redirect as `scope=read,activity:write`; that is allowed. The service never calls Strava read endpoints, so the broader grant is harmless.
+**Request `scope=activity:write`; an additional returned `read` scope is accepted.** **[V]** `activity:write` grants "access to create manual activities and uploads, and access to edit any activities that are visible to the app." Strava may also grant `read` and report it in the redirect as `scope=read,activity:write`; that is allowed, and a granted `read` scope may be used ([ADR 0010](../decisions/0010-allow-development-read-calls.md)). The authorization request itself still asks for nothing beyond `activity:write`.
 
 **Step 2** — exchange the `code` from the redirect:
 
@@ -71,7 +71,7 @@ trainer          (optional)  int
 commute          (optional)  int
 ```
 
-Returns a `DetailedActivity`; take `id` and build `https://www.strava.com/activities/{id}`.
+**The `201` response body is not reliable. [U]** The reference documents a `DetailedActivity` return, and when the body is present, `id` builds `https://www.strava.com/activities/{id}`. [T07](../tasks/T07-manual-create-activity.md) observed `201` with a **zero-byte body** on two consecutive creates (2026-09-15); both activities were created correctly, with the sent `name`, `description`, and `elapsed_time` all rendering on the activity page. Parse `id` when the body has it; never make the request fail because the body is empty, and never retry the `POST` to chase a missing body — that creates a duplicate activity. Recovering the `id` when the body is empty is [open item 6](11-open-items-and-sources.md#15-open-items). Three routes, cheapest first: the `Location` response header, which is unprobed and costs no extra call; reading the activity back, now permitted by [ADR 0010](../decisions/0010-allow-development-read-calls.md); or dropping the `id`, since it feeds only the §5 convenience link and the §6 `strava.url` field and nothing depends on it for correctness.
 
 **`type` is also listed as required in the reference alongside `sport_type`. [U]** Send both — `type="WeightTraining"`, `sport_type="WeightTraining"` — and treat a 400 naming either field as a signal to send only `sport_type`.
 
@@ -97,11 +97,11 @@ Set timestamps: Strong provides none. Distribute sets uniformly across `elapsed_
 
 Strava API Policy §5.3: _"You may not use the Strava API Materials or Strava Data, directly or indirectly, in connection with the development, training, evaluation, or operation of any AI Application."_ The clause explicitly extends to grounding, embedding generation, and retrieval-augmented generation.
 
-The MVP has no AI component, provider integration, or model credential. The service remains write-only, so no data originating from Strava can flow to an AI system.
+The MVP has no AI component, provider integration, or model credential, which is what makes §5.3 inapplicable. Note that the service is **no longer structurally write-only** ([ADR 0010](../decisions/0010-allow-development-read-calls.md)), so "Strava data cannot be fetched" is no longer an argument available to this design — the absence of any AI component is the whole of the compliance story.
 
 Enforce it in code, not by convention:
 
-1. Request `activity:write`. If Strava also grants `read` (for example the redirect reports `scope=read,activity:write`), accept the authorization, but never call any Strava read endpoint, so no Strava data can be fetched.
+1. Request `activity:write` and nothing broader. Read endpoints may be called ([ADR 0010](../decisions/0010-allow-development-read-calls.md)), so the write-only shape no longer enforces this by construction — rules 2 and 3 below carry it instead. A read payload must also stay out of any AI coding agent's context, since §5.3 reaches the toolchain even where it does not reach this service.
 2. Keep the MVP free of AI SDKs, remote model calls, prompts, and model credentials ([§8](06-activity-text.md)).
 3. Any separately designed post-MVP AI enhancement must never receive a Strava response — including `activity_id`, upload `status`, or error strings.
 
