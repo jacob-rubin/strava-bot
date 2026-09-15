@@ -1,6 +1,6 @@
 ---
 status: authoritative
-last-updated: 2026-09-13
+last-updated: 2026-09-14
 ---
 
 ← [Index](../PLANNING.md)
@@ -21,14 +21,14 @@ last-updated: 2026-09-13
 
 Rationale: Shortcuts has no crypto primitives, so OIDC and HMAC request signing are impossible on the client. A static bearer secret is the only option. Blast radius is bounded: the key permits posting workouts to one Strava account and nothing else.
 
-**Processing order is mandatory** — cheap rejections precede all paid work:
+**Processing order is mandatory** — cheap rejections precede external writes:
 
 1. Auth check → 404
 2. `Content-Length` > 64 KiB → 413
 3. Parse → 400 with `{"error": "unparseable"}` on failure
 4. Idempotency lookup ([§6](04-persistence.md)) → 200 `"already posted: <activity_url>"`
 5. Persist raw + parsed
-6. LLM call
+6. Format title + description locally
 7. Strava call
 8. Persist result
 
@@ -100,7 +100,7 @@ The first step builds with **Google's native buildpacks** (`gcr.io/buildpacks/bu
 
 `--allow-unauthenticated` disables Google's IAM check, not the application's. It is required: the Shortcut cannot mint an OIDC token.
 
-**`--max-instances=3` is a cost control, not a performance setting.** The endpoint is public and invokes a paid model. Configure the billing budget alert in the same Terraform config with `google_billing_budget`.
+**`--max-instances=3` is a cost control, not a performance setting.** The endpoint is public and unauthenticated at the Cloud Run IAM layer, so application-authenticated abuse or a bug can still consume compute. Configure the billing budget alert in the same Terraform config with `google_billing_budget`.
 
 ---
 

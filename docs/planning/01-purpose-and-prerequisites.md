@@ -1,13 +1,13 @@
 ---
 status: authoritative
-last-updated: 2026-09-13
+last-updated: 2026-09-14
 ---
 
 ← [Index](../PLANNING.md)
 
 ## 1. Purpose
 
-Post strength workouts logged in the Strong iOS app to Strava, automatically, with an LLM-generated title and description.
+Post strength workouts logged in the Strong iOS app to Strava automatically, with a deterministic title and description derived from the workout.
 
 ### Flow
 
@@ -19,7 +19,7 @@ Strong (iOS) → Share Workout (plain text)
          ├─ authenticate, validate, parse
          ├─ idempotency check
          ├─ persist raw + parsed
-         ├─ generate title + description (LLM)
+         ├─ format title + description locally
          └─ create Strava activity
       → plain-text status line, shown in an iOS notification
 ```
@@ -28,7 +28,7 @@ Strong (iOS) → Share Workout (plain text)
 
 - Parse Strong's share text into a structured workout.
 - Idempotent HTTP ingest endpoint on Cloud Run.
-- LLM-generated title and description from workout data.
+- Deterministic title and description from workout data.
 - Create the Strava activity with that title and description.
 
 ### Explicitly out of scope
@@ -38,6 +38,7 @@ Strong (iOS) → Share Workout (plain text)
 - Reading any data back from Strava (see [Strava integration §7.5](05-strava-integration.md#75-policy-constraint--non-negotiable)).
 - Multi-user support. Single user, single Strava account, no user table.
 - A native iOS app or Share Extension.
+- AI-generated titles or descriptions. This is a possible post-MVP enhancement, not a dependency of the app.
 
 ---
 
@@ -50,7 +51,6 @@ Strong (iOS) → Share Workout (plain text)
 | GCP project                | Cloud Run (deployed by Cloud Build), Secret Manager, Firestore (native mode) — infrastructure declared in Terraform.                                                  |
 | Terraform CLI              | Google provider; config lives in `terraform/` and is applied with `terraform apply` ([ADR 0007](../decisions/0007-terraform-for-gcp-infra.md)).                    |
 | Node.js 24 LTS + npm       | Service, scripts, and tests are strict TypeScript; use the version declared by `package.json` ([ADR 0008](../decisions/0008-typescript-node-runtime.md)).            |
-| LLM API access             | Any provider. Isolated behind an interface ([§8](06-llm-generation.md)).                                                                                              |
 
 ---
 

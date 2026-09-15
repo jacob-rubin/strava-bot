@@ -1,6 +1,6 @@
 ---
 status: task
-last-updated: 2026-09-13
+last-updated: 2026-09-14
 ---
 
 ← [Task index](README.md) · [Status](../STATUS.md)
@@ -9,7 +9,7 @@ last-updated: 2026-09-13
 
 |            |     |
 | ---------- | --- |
-| Phase      | [§13 step 7](../planning/10-build-order-and-client.md#13-build-order) — optional structured upload |
+| Phase      | [§13 step 6](../planning/10-build-order-and-client.md#13-build-order) — optional structured upload |
 | Depends on | [T15](T15-strava-client.md) |
 | Executor   | agent |
 | Blocked by | resolves [open item 3](../planning/11-open-items-and-sources.md#15-open-items) |

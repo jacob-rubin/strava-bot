@@ -1,16 +1,16 @@
 ---
 status: authoritative
-last-updated: 2026-09-10
+last-updated: 2026-09-14
 ---
 
 ← [Decisions](README.md) · [Index](../PLANNING.md)
 
-# 0005 — PR detection computed in code, not left to the model
+# 0005 — PR detection computed explicitly in code
 
-**Context.** The description generator wants to call out PRs ("heaviest deadlift set in 3 months"). This requires comparing the current workout's numbers against `history`. LLMs are unreliable at exact arithmetic comparisons, and a wrong PR claim is a visible, embarrassing failure mode in a public-facing activity description.
+**Context.** Activity descriptions may call out PRs ("heaviest deadlift set in 3 months"). This requires comparing the current workout's numbers against `history`, and a wrong claim is a visible failure in a public activity description.
 
-**Decision.** Compute PR/comparison flags (e.g. `is_weight_pr`, `is_volume_pr`) in code by comparing parsed values against the `history` collection, and pass them to the model as explicit booleans. The model is never asked to decide whether something is a PR.
+**Decision.** Compute PR/comparison flags (e.g. `is_weight_pr`, `is_volume_pr`) in code by comparing parsed values against the `history` collection. The activity-text formatter consumes these explicit booleans and does not infer whether something is a PR.
 
-**Consequences.** The model's job narrows to phrasing, which it's reliable at; the arithmetic that would embarrass the user if wrong lives in testable code instead of a prompt. See [Constraints #10](../CONSTRAINTS.md).
+**Consequences.** The comparison arithmetic lives in focused, testable code, and deterministic phrasing can only make claims the computed flags support. See [Constraints #10](../CONSTRAINTS.md).
 
-→ [Title and description generation §8](../planning/06-llm-generation.md)
+→ [Activity title and description formatting §8](../planning/06-activity-text.md)

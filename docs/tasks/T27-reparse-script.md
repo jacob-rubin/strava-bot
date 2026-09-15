@@ -1,6 +1,6 @@
 ---
 status: task
-last-updated: 2026-09-13
+last-updated: 2026-09-14
 ---
 
 ← [Task index](README.md) · [Status](../STATUS.md)
@@ -9,7 +9,7 @@ last-updated: 2026-09-13
 
 |            |     |
 | ---------- | --- |
-| Phase      | [§13 step 7](../planning/10-build-order-and-client.md#13-build-order) — optional tooling |
+| Phase      | [§13 step 6](../planning/10-build-order-and-client.md#13-build-order) — optional tooling |
 | Depends on | [T11](T11-parser-derived-values.md), [T13](T13-store-workouts.md) |
 | Executor   | agent |
 | Blocked by | — |
