@@ -135,7 +135,7 @@ In the task worktree:
 
 1. `git fetch origin --prune`, then `git merge --ff-only origin/main`, falling back to `git merge origin/main` if the branch diverged — other tasks have been merging while you worked. A conflict here means the branch wrote a file another task owns: stop and report it rather than resolving it by hand. The one exception is `docs/STATUS.md`, which is generated — take main's copy with `git checkout origin/main -- docs/STATUS.md` and never re-render it on a task branch.
 2. In `docs/status/tasks/<task-id>.md`, set `status: done`, bump `updated:`, and put any deviation from the spec in the body as one line. Fill `pr:` only if you already know the URL; it is optional.
-3. If the work resolved an open item, edit that item's file in `docs/status/open-items/` — `status: resolved` plus the answer and the date in the body. Leave the file in place rather than deleting it.
+3. If the work resolved an open item, edit that item's file in `docs/status/open-items/` — `status: resolved` plus the answer and the date in the body. Leave the file in place, and leave the question itself in \u00a715 of `docs/planning/11-open-items-and-sources.md`, which is where it is defined.
 4. Commit (`<task-id>: mark done`) and push.
 5. Open the PR:
 
@@ -163,4 +163,3 @@ Report the PR URL and whether cleanup succeeded, then stop. Do not merge, delete
 - Never force-remove a worktree or delete a colliding directory.
 - Never print, log, or commit a secret value or a `raw_text` payload. If a verification step would emit one, redact it before showing the output.
 - Stay inside the selected task's **Deliverable**; note anything else you noticed rather than fixing it here.
-
