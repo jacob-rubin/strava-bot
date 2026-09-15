@@ -25,7 +25,7 @@ Status values: `not started` · `in progress` · `done` · `blocked` · `skipped
 | T06 | [Write `scripts/authorize.ts`](tasks/T06-authorize-script.md) | 1 prove auth | agent + human step | not started | |
 | T07 | [Prove `POST /activities` with a manual curl](tasks/T07-manual-create-activity.md) | 1 prove auth | human | not started | observes open item 4 |
 | T08 | [Write `app/models.ts`](tasks/T08-models-module.md) | 2 parser | agent | not started | |
-| T09 | [Add the share-text fixtures](tasks/T09-fixtures.md) | 2 parser | agent | in progress | |
+| T09 | [Add the share-text fixtures](tasks/T09-fixtures.md) | 2 parser | agent | done | |
 | T10 | [Write `app/parser.ts`](tasks/T10-parser-core.md) | 2 parser | agent | not started | |
 | T11 | [Derived values, dedupe key, elapsed](tasks/T11-parser-derived-values.md) | 2 parser | agent | not started | |
 | T12 | [Complete `tests/test_parser.ts`](tasks/T12-parser-tests.md) | 2 parser | agent | not started | |
