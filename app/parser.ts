@@ -2,10 +2,9 @@
  * Strong share-text parser: grammar, the nine parsing rules, and every set
  * payload variant of docs/planning/02-input-contract.md (§3).
  *
- * Scope (T10): structure only. Per-set `volume`, the working-set totals, each
- * exercise's top set, `dedupe_key`, `content_hash`, and `elapsed_s` are §3
- * "Derived values"/"Duration" and belong to T11; every set produced here
- * carries `volume: 0` as a placeholder for that pass.
+ * Scope: §3 grammar and derived values. Per-set `volume`, the working-set
+ * totals, each exercise's top set, `dedupe_key`, `content_hash`, and
+ * `elapsed_s` are computed here (T10 + T11).
  *
  * Two rules shape the control flow below and are not negotiable:
  * - Rule 9 / constraint 5: an unrecognized payload becomes `kind="unparsed"`
@@ -16,14 +15,17 @@
  * them cannot leak `raw_text` (constraint 7).
  */
 
+import { createHash } from "node:crypto";
 import { DateTime } from "luxon";
 
 import type {
   DistanceUnit,
   Exercise,
+  TopSet,
   WeightUnit,
   Workout,
   WorkoutSet,
+  WorkoutSummary,
 } from "./models.js";
 
 /** Luxon format of `date_line` (§3 grammar). Naive local time, no offset. */
@@ -156,6 +158,166 @@ export function parseWorkout(text: string): Workout {
   return workout;
 }
 
+/** §3 derived values: per-set volume is `weight × reps`, 0 when either absent. */
+export function setVolume(
+  set: Pick<WorkoutSet, "weight" | "reps">,
+): number {
+  if (set.weight === null || set.reps === null) {
+    return 0;
+  }
+  return set.weight * set.reps;
+}
+
+/** §3 derived values: the three working-set-only totals. */
+export interface WorkingSetTotals {
+  total_volume: number;
+  total_reps: number;
+  total_sets: number;
+}
+
+export function workingSetTotals(
+  workout: Pick<Workout, "exercises">,
+): WorkingSetTotals {
+  const totals: WorkingSetTotals = {
+    total_volume: 0,
+    total_reps: 0,
+    total_sets: 0,
+  };
+
+  for (const exercise of workout.exercises) {
+    for (const set of exercise.sets) {
+      if (set.is_warmup) {
+        continue;
+      }
+      totals.total_sets += 1;
+      totals.total_volume += setVolume(set);
+      totals.total_reps += set.reps ?? 0;
+    }
+  }
+
+  return totals;
+}
+
+/**
+ * §3 derived values: an exercise's working set with the greatest `(weight,
+ * reps)` pair lexicographically. Exercises with no weight-bearing working set
+ * have no top set.
+ */
+export function exerciseTopSet(
+  exercise: Pick<Exercise, "sets">,
+): TopSet | null {
+  let best: TopSet | null = null;
+
+  for (const set of exercise.sets) {
+    if (set.is_warmup || set.weight === null || set.reps === null) {
+      continue;
+    }
+
+    if (
+      best === null ||
+      set.weight > best.weight ||
+      (set.weight === best.weight && set.reps > best.reps)
+    ) {
+      best = { weight: set.weight, unit: set.unit, reps: set.reps };
+    }
+  }
+
+  return best;
+}
+
+/** §6: the `dedupe_key` rule-2 seed shared by `dedupe_key` and `content_hash`. */
+function dedupeSeed(
+  workout: Pick<Workout, "started_at" | "exercises">,
+): string {
+  return [
+    workout.started_at,
+    ...workout.exercises.map(
+      (exercise) => `${exercise.name}:${exercise.sets.length}`,
+    ),
+  ].join("|");
+}
+
+/**
+ * §6: `content_hash` is computed on every ingest so dedup stays correct even
+ * if the share-link slug is unstable (ADR 0003).
+ */
+export function contentHash(
+  workout: Pick<Workout, "started_at" | "exercises">,
+): string {
+  const digest = createHash("sha256")
+    .update(dedupeSeed(workout), "utf8")
+    .digest("hex")
+    .slice(0, 32);
+  return `sha256:${digest}`;
+}
+
+/** §6: `dedupe_key` derivation, rule 1 then rule 2. */
+export function dedupeKey(
+  workout: Pick<Workout, "share_slug" | "started_at" | "exercises">,
+): string {
+  if (workout.share_slug !== null) {
+    return `strong:${workout.share_slug}`;
+  }
+  return contentHash(workout);
+}
+
+/** §3 duration: the 4-hour cap above which elapsed falls back. */
+export const ELAPSED_CAP_S = 14_400;
+/** §3 duration: fallback seconds per working set. */
+const ELAPSED_PER_SET_S = 165;
+/** §3 duration: minimum fallback elapsed. */
+const ELAPSED_MIN_S = 600;
+
+/**
+ * §3 duration: `elapsed_s` with the two-branch formula.
+ *
+ * `receivedAt` is server receipt time converted to the workout's local wall
+ * clock, matching the parser's naive `started_at`. `capSeconds` is the
+ * `ELAPSED_CAP_S` bound and can be overridden in tests or by configuration.
+ */
+export function elapsedSeconds(
+  startedAt: string,
+  receivedAt: DateTime,
+  totalSets: number,
+  capSeconds: number = ELAPSED_CAP_S,
+): number {
+  const zone = receivedAt.zoneName ?? "utc";
+  const started = DateTime.fromISO(startedAt, { zone: "utc" }).setZone(zone, {
+    keepLocalTime: true,
+  });
+  const deltaSeconds = receivedAt.diff(started, "seconds").seconds;
+
+  if (deltaSeconds > 0 && deltaSeconds <= capSeconds) {
+    return Math.round(deltaSeconds);
+  }
+
+  return Math.max(ELAPSED_MIN_S, totalSets * ELAPSED_PER_SET_S);
+}
+
+/** Build the §6 `WorkoutSummary` (and per-exercise summaries) from parser output. */
+export function summarizeWorkout(workout: Workout): WorkoutSummary {
+  const totals = workingSetTotals(workout);
+
+  return {
+    workout_name: workout.workout_name,
+    started_at: workout.started_at,
+    total_volume: totals.total_volume,
+    total_reps: totals.total_reps,
+    total_sets: totals.total_sets,
+    exercises: workout.exercises.map((exercise) => {
+      const exerciseTotals = workingSetTotals({ exercises: [exercise] });
+      return {
+        name: exercise.name,
+        equipment: exercise.equipment,
+        top_set: exerciseTopSet(exercise),
+        total_volume: exerciseTotals.total_volume,
+        total_reps: exerciseTotals.total_reps,
+        sets: exercise.sets,
+      };
+    }),
+  };
+}
+
 /**
  * Rule 1 / §3 duration: `date_line` is naive local wall clock. It is parsed in
  * UTC purely so that a DST gap in `LOCAL_TZ` cannot invalidate a timestamp the
@@ -214,13 +376,16 @@ function buildSet(index: string, payload: string): WorkoutSet {
   const assisted = ASSISTED_REPS.exec(payload);
   if (assisted !== null) {
     const magnitude = toNumber(assisted[2] ?? "");
+    const weight = assisted[1] === "-" ? -magnitude : magnitude;
+    const reps = toNumber(assisted[4] ?? "");
     return {
       ...base,
       kind: "assisted_reps",
       // §3: a negative load means machine assistance; keep the sign verbatim.
-      weight: assisted[1] === "-" ? -magnitude : magnitude,
+      weight,
       unit: toWeightUnit(assisted[3] ?? ""),
-      reps: toNumber(assisted[4] ?? ""),
+      reps,
+      volume: setVolume({ weight, reps }),
       duration_s: null,
       distance: null,
       distance_unit: null,
@@ -229,12 +394,15 @@ function buildSet(index: string, payload: string): WorkoutSet {
 
   const weightReps = WEIGHT_REPS.exec(payload);
   if (weightReps !== null) {
+    const weight = toNumber(weightReps[1] ?? "");
+    const reps = toNumber(weightReps[3] ?? "");
     return {
       ...base,
       kind: "weight_reps",
-      weight: toNumber(weightReps[1] ?? ""),
+      weight,
       unit: toWeightUnit(weightReps[2] ?? ""),
-      reps: toNumber(weightReps[3] ?? ""),
+      reps,
+      volume: setVolume({ weight, reps }),
       duration_s: null,
       distance: null,
       distance_unit: null,
