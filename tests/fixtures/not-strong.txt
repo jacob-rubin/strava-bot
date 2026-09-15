@@ -1,0 +1,2 @@
+Not a Strong workout.
+This file is deliberately not a valid share-text payload.
