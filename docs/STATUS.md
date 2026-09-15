@@ -7,7 +7,7 @@ last-updated: 2026-09-14
 
 # Build status
 
-**Current focus:** [T06 — Write `scripts/authorize.ts`](tasks/T06-authorize-script.md), the earliest unfinished task whose dependencies are all `done` — it needs a human browser step. [T10 — Write `app/parser.ts`](tasks/T10-parser-core.md) is the next agent-only task and can run in parallel.
+**Current focus:** [T07 — Prove `POST /activities` with a manual curl](tasks/T07-manual-create-activity.md), the next human task — T06 obtained and stored the Strava refresh token, so T07 now has all dependencies complete. [T10 — Write `app/parser.ts`](tasks/T10-parser-core.md) is the next agent-only task and can run in parallel.
 
 This file is the **single source of truth for task status**. Task runbooks in [tasks/](tasks/README.md) are static; they carry no status of their own. Unlike the rest of `docs/`, this file is expected to change every work session — update it as tasks complete instead of inferring progress from the code or git log.
 
@@ -22,7 +22,7 @@ Status values: `not started` · `in progress` · `done` · `blocked` · `skipped
 | T03 | [Create the Secret Manager secrets with Terraform](tasks/T03-secret-manager-secrets.md) | 1 prove auth | agent | done | Secret resources and IAM landed early in T02, so this added the versions: `INGEST_KEY`/`INGEST_PATH_TOKEN` from `random_password` (43 URL-safe chars, ~256 bits), `STRAVA_CLIENT_SECRET` from `TF_VAR_strava_client_secret`. The premature `llm-api-key` resource was removed during T05 because AI-generated text is outside the MVP. The refresh token waits for T06 |
 | T04 | [Scaffold the TypeScript repository skeleton](tasks/T04-repo-skeleton.md) | 1 prove auth | agent | done | Node.js 24 LTS + strict TypeScript scaffold implemented per [ADR 0008](decisions/0008-typescript-node-runtime.md) |
 | T05 | [Write `app/config.ts`](tasks/T05-config-module.md) | 1 prove auth | agent | done | Review removed the premature `LLM_API_KEY` config and Terraform secret; the MVP has no AI/model dependency |
-| T06 | [Write `scripts/authorize.ts`](tasks/T06-authorize-script.md) | 1 prove auth | agent + human step | not started | |
+| T06 | [Write `scripts/authorize.ts`](tasks/T06-authorize-script.md) | 1 prove auth | agent + human step | done | Allowed a returned `read` scope alongside `activity:write` via ADR 0009. Refresh token added to Secret Manager |
 | T07 | [Prove `POST /activities` with a manual curl](tasks/T07-manual-create-activity.md) | 1 prove auth | human | not started | observes open item 4 |
 | T08 | [Write `app/models.ts`](tasks/T08-models-module.md) | 2 parser | agent | done | Types-only module. Union variants null the measurements they don't carry (§12 requires `weight=null` on `kind="reps"`); `Workout` also carries `share_slug` and `warnings` so §3 rules 5 and 3 are representable |
 | T09 | [Add the share-text fixtures](tasks/T09-fixtures.md) | 2 parser | agent | done | |

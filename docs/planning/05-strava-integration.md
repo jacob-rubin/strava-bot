@@ -26,7 +26,7 @@ https://www.strava.com/oauth/authorize
   &scope=activity:write
 ```
 
-**`scope=activity:write` and nothing else.** **[V]** `activity:write` grants "access to create manual activities and uploads, and access to edit any activities that are visible to the app." Requesting no read scope makes [§7.5](#75-policy-constraint--non-negotiable) structurally enforced rather than a code convention.
+**Request `scope=activity:write`; an additional returned `read` scope is accepted.** **[V]** `activity:write` grants "access to create manual activities and uploads, and access to edit any activities that are visible to the app." Strava may also grant `read` and report it in the redirect as `scope=read,activity:write`; that is allowed. The service never calls Strava read endpoints, so the broader grant is harmless.
 
 **Step 2** — exchange the `code` from the redirect:
 
@@ -97,11 +97,11 @@ Set timestamps: Strong provides none. Distribute sets uniformly across `elapsed_
 
 Strava API Policy §5.3: _"You may not use the Strava API Materials or Strava Data, directly or indirectly, in connection with the development, training, evaluation, or operation of any AI Application."_ The clause explicitly extends to grounding, embedding generation, and retrieval-augmented generation.
 
-The MVP has no AI component, provider integration, or model credential. Strava is write-only, so no data originating from Strava can flow to an AI system.
+The MVP has no AI component, provider integration, or model credential. The service remains write-only, so no data originating from Strava can flow to an AI system.
 
 Enforce it in code, not by convention:
 
-1. Request `activity:write` only. No read scope is granted, so no Strava data can be fetched.
+1. Request `activity:write`. If Strava also grants `read` (for example the redirect reports `scope=read,activity:write`), accept the authorization, but never call any Strava read endpoint, so no Strava data can be fetched.
 2. Keep the MVP free of AI SDKs, remote model calls, prompts, and model credentials ([§8](06-activity-text.md)).
 3. Any separately designed post-MVP AI enhancement must never receive a Strava response — including `activity_id`, upload `status`, or error strings.
 
