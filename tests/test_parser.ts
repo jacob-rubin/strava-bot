@@ -1,12 +1,22 @@
 /**
- * T10 covers the §3 grammar and the set payload variants. The full §12
- * acceptance sweep — totals, top set, dedupe key — lands with T11/T12.
+ * T10 covers the §3 grammar and the set payload variants. T11 adds the
+ * derived-value tests: totals, top set, dedupe key, content hash, and elapsed.
  */
 import { readFileSync } from "node:fs";
 
+import { DateTime } from "luxon";
 import { describe, expect, it } from "vitest";
 
-import { ParseError, parseWorkout } from "../app/parser.js";
+import {
+  ParseError,
+  contentHash,
+  dedupeKey,
+  elapsedSeconds,
+  exerciseTopSet,
+  parseWorkout,
+  summarizeWorkout,
+  workingSetTotals,
+} from "../app/parser.js";
 import type { Workout } from "../app/models.js";
 
 function fixture(name: string): string {
@@ -129,7 +139,7 @@ describe("set payload variants", () => {
       kind: "weight_reps",
       index: "1",
       is_warmup: false,
-      volume: 0,
+      volume: 1260,
       weight: 315,
       unit: "lb",
       reps: 4,
@@ -202,5 +212,111 @@ describe("set payload variants", () => {
 
     expect(set.kind).toBe("unparsed");
     expect(set).toMatchObject({ index: "2", raw: "something weird here" });
+  });
+});
+
+describe("derived values", () => {
+  const canonical = parseFixture("canonical");
+
+  it("totals working sets, reps, and volume while ignoring warmups", () => {
+    expect(workingSetTotals(canonical)).toStrictEqual({
+      total_volume: 19_650,
+      total_reps: 105,
+      total_sets: 12,
+    });
+    expect(canonical.started_at).toBe("2026-09-09T06:43:00");
+    expect(canonical.started_at).not.toMatch(/[Zz]|[+-]\d{2}:\d{2}$/);
+
+    expect(workingSetTotals(parseFixture("warmup"))).toStrictEqual({
+      total_volume: 1_125,
+      total_reps: 5,
+      total_sets: 1,
+    });
+  });
+
+  it("finds each exercise top set as the lexicographic weight, reps max", () => {
+    expect(canonical.exercises.map(exerciseTopSet)).toStrictEqual([
+      { weight: 315, unit: "lb", reps: 4 },
+      { weight: 160, unit: "lb", reps: 9 },
+      { weight: 145, unit: "lb", reps: 11 },
+      { weight: 205, unit: "lb", reps: 11 },
+    ]);
+  });
+
+  it("derives the dedupe key from the slug and always computes a content hash", () => {
+    expect(dedupeKey(canonical)).toBe("strong:gvvdfvga");
+    expect(contentHash(canonical)).toBe(
+      "sha256:d80c2a1ce3ca03a85ce1111ca0f32d6f",
+    );
+
+    const noLink = parseFixture("no-share-link");
+    expect(dedupeKey(noLink)).toBe(contentHash(noLink));
+    expect(dedupeKey(noLink)).toMatch(/^sha256:[0-9a-f]{32}$/);
+  });
+
+  it("computes elapsed_s from received_at or falls back outside the cap", () => {
+    const received = DateTime.fromISO("2026-09-09T07:43:00", {
+      zone: "America/Chicago",
+    });
+
+    expect(elapsedSeconds(canonical.started_at, received, 12)).toBe(3_600);
+
+    expect(
+      elapsedSeconds(
+        canonical.started_at,
+        DateTime.fromISO("2026-09-09T06:42:00", {
+          zone: "America/Chicago",
+        }),
+        12,
+      ),
+    ).toBe(1_980);
+
+    expect(
+      elapsedSeconds(
+        canonical.started_at,
+        DateTime.fromISO("2026-09-10T07:43:00", {
+          zone: "America/Chicago",
+        }),
+        12,
+      ),
+    ).toBe(1_980);
+
+    expect(
+      elapsedSeconds(
+        canonical.started_at,
+        DateTime.fromISO("2026-09-10T07:43:00", {
+          zone: "America/Chicago",
+        }),
+        2,
+      ),
+    ).toBe(600);
+  });
+
+  it("summarizes workout totals and per-exercise derived values", () => {
+    const summary = summarizeWorkout(canonical);
+
+    expect(summary).toMatchObject({
+      workout_name: "Early Morning Workout",
+      started_at: "2026-09-09T06:43:00",
+      total_volume: 19_650,
+      total_reps: 105,
+      total_sets: 12,
+    });
+    expect(
+      summary.exercises.map((exercise) => [
+        exercise.name,
+        exercise.total_volume,
+        exercise.top_set,
+      ]),
+    ).toStrictEqual([
+      ["Deadlift", 3_780, { weight: 315, unit: "lb", reps: 4 }],
+      ["Hack Squat", 4_320, { weight: 160, unit: "lb", reps: 9 }],
+      ["Leg Extension", 4_785, { weight: 145, unit: "lb", reps: 11 }],
+      [
+        "Calf Press on Leg Press",
+        6_765,
+        { weight: 205, unit: "lb", reps: 11 },
+      ],
+    ]);
   });
 });
