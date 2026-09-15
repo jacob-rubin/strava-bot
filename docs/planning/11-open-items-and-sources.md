@@ -1,6 +1,6 @@
 ---
 status: authoritative
-last-updated: 2026-09-13
+last-updated: 2026-09-15
 ---
 
 ← [Index](../PLANNING.md)
@@ -14,6 +14,7 @@ last-updated: 2026-09-13
 | 3   | Does `POST /uploads` accept JSON, and is the field `data_type` or `dataType`? | Phase 2 only                           | `scripts/probe_upload_json.ts`               |
 | 4   | Does `POST /activities` require `type` alongside `sport_type`?                | nothing — send both                    | observe the 400                              |
 | 5   | Set-format coverage beyond the six known variants                             | nothing — `unparsed` is retained       | share unusual movements, grep for `unparsed` |
+| 6   | With an empty `201` body, how does `app/` get the activity `id`?              | §5 response URL, §6 `strava.url`       | probe the `Location` header on create; else read the activity back ([ADR 0010](../decisions/0010-allow-development-read-calls.md)); else drop the URL, which nothing depends on |
 
 None of these block items 1–6 of [§13](10-build-order-and-client.md#13-build-order).
 
