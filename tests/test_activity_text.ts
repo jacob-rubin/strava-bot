@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { formatActivityText } from "../app/activity_text.js";
+import { buildHistoryContext, type StoredExerciseHistory } from "../app/store.js";
+import { Timestamp } from "@google-cloud/firestore";
 
 import type {
   ExerciseSummary,
@@ -67,6 +69,25 @@ function makeSummary(overrides: Partial<WorkoutSummary> = {}): WorkoutSummary {
 
 function emptyContext(): HistoryContext {
   return { per_exercise: {}, pr_flags: {} };
+}
+
+function storedHistory(
+  overrides: Partial<StoredExerciseHistory> = {},
+): StoredExerciseHistory {
+  return {
+    exercise_name: "Deadlift",
+    best_e1rm: 357,
+    best_top_set: { weight: 315, unit: "lb", reps: 4 },
+    last_performed: Timestamp.fromDate(new Date("2026-09-02T06:43:00Z")),
+    recent: [
+      {
+        date: Timestamp.fromDate(new Date("2026-09-02T06:43:00Z")),
+        top_set: { weight: 315, unit: "lb", reps: 4 },
+        volume: 3780,
+      },
+    ],
+    ...overrides,
+  };
 }
 
 describe("formatActivityText", () => {
@@ -177,6 +198,86 @@ describe("formatActivityText", () => {
     expect(output).not.toMatch(/https?:|\bwww\./i);
     expect(output).not.toMatch(/[#*_[\]()`>]/);
     expect(output).not.toMatch(/\p{Extended_Pictographic}/u);
+  });
+});
+
+describe("HistoryContext assembly", () => {
+  it("sets a PR flag when this workout's e1rm beats stored history", () => {
+    const summary = makeSummary({
+      total_volume: 1600,
+      total_reps: 5,
+      total_sets: 1,
+      exercises: [
+        makeExercise("Deadlift", { weight: 320, unit: "lb", reps: 5 }, 1600, 5),
+      ],
+    });
+
+    const context = buildHistoryContext(
+      summary,
+      new Map<string, StoredExerciseHistory | null>([["Deadlift", storedHistory()]]),
+      Timestamp.fromDate(new Date("2026-09-09T06:43:00Z")),
+    );
+
+    expect(context.pr_flags["Deadlift:weight"]).toBe(true);
+    expect(context.per_exercise["Deadlift"]?.days_since_last).toBe(7);
+  });
+
+  it("does not set a PR flag on a near-miss", () => {
+    const summary = makeSummary({
+      total_volume: 945,
+      total_reps: 3,
+      total_sets: 1,
+      exercises: [
+        makeExercise("Deadlift", { weight: 315, unit: "lb", reps: 3 }, 945, 3),
+      ],
+    });
+
+    const context = buildHistoryContext(
+      summary,
+      new Map<string, StoredExerciseHistory | null>([["Deadlift", storedHistory()]]),
+      Timestamp.fromDate(new Date("2026-09-09T06:43:00Z")),
+    );
+
+    expect(context.pr_flags).not.toHaveProperty("Deadlift:weight");
+    expect(context.pr_flags).toStrictEqual({});
+  });
+
+  it("leaves a first-ever exercise with an empty context and no comparative language", () => {
+    const summary = makeSummary();
+
+    const context = buildHistoryContext(
+      summary,
+      new Map<string, StoredExerciseHistory | null>(),
+      Timestamp.fromDate(new Date("2026-09-09T06:43:00Z")),
+    );
+
+    expect(context).toStrictEqual({ per_exercise: {}, pr_flags: {} });
+
+    const result = formatActivityText(summary, context);
+    expect(result.description).not.toContain("PR");
+    expect(result.description).not.toContain("trend");
+    expect(result.description).not.toContain("days since");
+    expect(result.description).not.toContain("best");
+    expect(result.description).not.toContain("previous");
+    expect(result.description).not.toContain("vs");
+  });
+
+  it("leaves volume_trend null with one history data point", () => {
+    const summary = makeSummary({
+      total_volume: 3780,
+      total_reps: 12,
+      total_sets: 1,
+      exercises: [makeExercise("Deadlift", deadliftTop, 3780, 12)],
+    });
+
+    const context = buildHistoryContext(
+      summary,
+      new Map<string, StoredExerciseHistory | null>([["Deadlift", storedHistory()]]),
+      Timestamp.fromDate(new Date("2026-09-09T06:43:00Z")),
+    );
+
+    expect(context.per_exercise["Deadlift"]?.volume_trend).toBeNull();
+    expect(context.per_exercise["Deadlift"]?.best_e1rm).toBe(357);
   });
 });
 

@@ -20,6 +20,7 @@ import { DateTime } from "luxon";
 
 import { formatActivityText } from "./activity_text.js";
 import { loadSettings, type Settings } from "./config.js";
+import type { HistoryContext, WorkoutSummary } from "./models.js";
 import {
   contentHash,
   dedupeKey,
@@ -63,6 +64,10 @@ export interface WorkoutStoreLike {
   ): Promise<StoredWorkout | null>;
   recordReceived(workout: ReceivedWorkout): Promise<void>;
   recordResult(dedupeKey: string, result: WorkoutResult): Promise<void>;
+  getHistoryContext(
+    summary: WorkoutSummary,
+    startedAt: Timestamp,
+  ): Promise<HistoryContext>;
 }
 
 export interface ActivityClient {
@@ -290,15 +295,17 @@ export function createApp(options: CreateAppOptions = {}): FastifyInstance {
         state.elapsedS = elapsedS;
       }
 
+      const startedAt = Timestamp.fromDate(
+        DateTime.fromISO(workout.started_at, { zone: settings.localTz }).toJSDate(),
+      );
+
       try {
         await store.recordReceived({
           dedupe_key: workoutDedupeKey,
           content_hash: workoutContentHash,
           raw_text: rawText,
           parsed: workout,
-          started_at: Timestamp.fromDate(
-            DateTime.fromISO(workout.started_at, { zone: settings.localTz }).toJSDate(),
-          ),
+          started_at: startedAt,
           elapsed_s: elapsedS,
           received_at: Timestamp.fromDate(receivedAt.toJSDate()),
         });
@@ -306,12 +313,18 @@ export function createApp(options: CreateAppOptions = {}): FastifyInstance {
         return failInternal(reply, state);
       }
 
+      // §6: read history before the post so this workout never compares
+      // against itself; history is written only after the Strava call.
+      let historyContext: HistoryContext;
+      try {
+        historyContext = await store.getHistoryContext(summary, startedAt);
+      } catch {
+        return failInternal(reply, state);
+      }
+
       // §8 formatting is synchronous, local, and happens only after the
       // idempotency record is durable and before the Strava call.
-      const activityText = formatActivityText(summary, {
-        per_exercise: {},
-        pr_flags: {},
-      });
+      const activityText = formatActivityText(summary, historyContext);
 
       let result: CreateActivityResult;
       const stravaStartedAt = Date.now();
