@@ -101,12 +101,18 @@ interface RequestState {
  * `app.inject()`. Production startup is at the bottom of this module.
  */
 export function createApp(options: CreateAppOptions = {}): FastifyInstance {
-  const runtimeSettings = options.settings === undefined ? loadSettings() : null;
-  const settings = options.settings ?? runtimeSettings;
+  let runtimeSettings: Settings | undefined;
+  let settings: IngestSettings;
+  if (options.settings === undefined) {
+    runtimeSettings = loadSettings();
+    settings = runtimeSettings;
+  } else {
+    settings = options.settings;
+  }
   const store = options.store ?? defaultStore();
   const strava =
     options.strava ??
-    (runtimeSettings === null
+    (runtimeSettings === undefined
       ? unavailableActivityClient()
       : defaultStravaClient(runtimeSettings));
   const now = options.now ?? (() => new Date());
