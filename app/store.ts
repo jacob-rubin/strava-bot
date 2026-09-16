@@ -1,17 +1,17 @@
 /**
- * Firestore read/write for the `workouts` collection (§6).
+ * Firestore read/write for the `workouts` and `history` collections (§6).
  *
- * This module owns the `workouts/{dedupe_key}` document shape and the two
- * idempotency lookups §6 requires before any Strava activity is created:
+ * This module owns the `workouts/{dedupe_key}` document shape, the two
+ * idempotency lookups §6 requires before any Strava activity is created, and
+ * the `history/{exercise_name}` documents written after a successful post:
  *
  *   1. `workouts/{dedupe_key}` by document id, then
  *   2. a query for an existing document with the same `content_hash`.
  *
- * It is deliberately a thin persistence seam: it does not compute
- * `dedupe_key`, `content_hash`, `started_at`, or `elapsed_s` (the parser and
- * the ingest route own those), and it never logs `raw_text` (constraint 7).
- * Firestore errors propagate untouched so the ingest route can map them to a
- * 500 (constraint 11 / error handling §11).
+ * `history` is written only from `recordResult` after the Strava post
+ * succeeds, so a failed post never advances a personal best (§6). It never
+ * logs `raw_text` (constraint 7). Firestore errors propagate untouched so the
+ * ingest route can map them to a 500 (constraint 11 / error handling §11).
  */
 
 import {
@@ -22,9 +22,11 @@ import {
   type Query,
 } from "@google-cloud/firestore";
 
-import type { Workout } from "./models.js";
+import type { ExerciseSummary, TopSet, Workout, WorkoutSet } from "./models.js";
+import { summarizeWorkout } from "./parser.js";
 
 const WORKOUTS_COLLECTION = "workouts";
+const HISTORY_COLLECTION = "history";
 
 export type WorkoutStatus = "received" | "posted" | "failed";
 
@@ -71,6 +73,22 @@ export interface WorkoutResult {
   error: string | null;
 }
 
+/** One entry in {@link StoredExerciseHistory.recent}; the last 10 only (§6). */
+export interface HistoryRecentEntry {
+  date: Timestamp;
+  top_set: TopSet | null;
+  volume: number;
+}
+
+/** A `history/{exercise_name}` document read back from Firestore (§6). */
+export interface StoredExerciseHistory {
+  exercise_name: string;
+  best_e1rm: number | null;
+  best_top_set: TopSet | null;
+  last_performed: Timestamp;
+  recent: HistoryRecentEntry[];
+}
+
 // --- Firestore seam ---------------------------------------------------------
 
 /** Snapshot of one `workouts` document. */
@@ -114,9 +132,11 @@ export interface WorkoutFirestore {
 
 export class WorkoutStore {
   readonly #workouts: WorkoutCollectionReference;
+  readonly #history: WorkoutCollectionReference;
 
   constructor(db: WorkoutFirestore) {
     this.#workouts = db.collection(WORKOUTS_COLLECTION);
+    this.#history = db.collection(HISTORY_COLLECTION);
   }
 
   /**
@@ -179,9 +199,8 @@ export class WorkoutStore {
   ): Promise<void> {
     const reference = this.#workouts.doc(dedupeKey);
     const snapshot = await reference.get();
-    const currentAttempts = snapshot.exists
-      ? snapshot.data()?.["attempts"]
-      : undefined;
+    const data = snapshot.exists ? snapshot.data() : undefined;
+    const currentAttempts = data?.["attempts"];
     const attempts =
       typeof currentAttempts === "number" ? currentAttempts + 1 : 1;
 
@@ -191,7 +210,143 @@ export class WorkoutStore {
       error: result.error,
       attempts,
     });
+
+    // §6: history is written only after a successful post. A failed post must
+    // not advance a personal best, so anything but `posted` skips this.
+    if (result.status !== "posted") {
+      return;
+    }
+
+    const parsed = (data?.["parsed"] ?? null) as Workout | null;
+    const startedAt = (data?.["started_at"] ?? null) as Timestamp | null;
+    if (parsed === null || startedAt === null) {
+      return;
+    }
+
+    for (const exercise of summarizeWorkout(parsed).exercises) {
+      await this.#recordExerciseHistory(exercise, startedAt);
+    }
   }
+
+  /**
+   * Read one `history/{exercise_name}` document for the activity-text context
+   * (§6). Returns null for an exercise that has never been posted before.
+   */
+  async getExerciseHistory(
+    exerciseName: string,
+  ): Promise<StoredExerciseHistory | null> {
+    const snapshot = await this.#history.doc(exerciseName).get();
+    if (!snapshot.exists) {
+      return null;
+    }
+    return toStoredExerciseHistory(snapshot.data() ?? {});
+  }
+
+  /**
+   * Rolling update of one exercise's history document: raise `best_e1rm` and
+   * `best_top_set` against the stored values, bump `last_performed`, and keep
+   * `recent` capped at its last {@link HISTORY_RECENT_LIMIT} entries (§6).
+   */
+  async #recordExerciseHistory(
+    exercise: ExerciseSummary,
+    performedAt: Timestamp,
+  ): Promise<void> {
+    const reference = this.#history.doc(exercise.name);
+    const snapshot = await reference.get();
+    const existing = snapshot.exists
+      ? toStoredExerciseHistory(snapshot.data() ?? {})
+      : null;
+
+    const currentBestE1rm = bestE1rm(exercise.sets);
+    const bestE1rmValue = maxNullable(
+      existing?.best_e1rm ?? null,
+      currentBestE1rm,
+    );
+    const bestTopSet = betterTopSet(
+      existing?.best_top_set ?? null,
+      exercise.top_set,
+    );
+    const recent = [
+      ...(existing?.recent ?? []),
+      {
+        date: performedAt,
+        top_set: exercise.top_set,
+        volume: exercise.total_volume,
+      },
+    ].slice(-HISTORY_RECENT_LIMIT);
+
+    await reference.set({
+      exercise_name: exercise.name,
+      best_e1rm: bestE1rmValue,
+      best_top_set: bestTopSet,
+      last_performed: performedAt,
+      recent,
+    });
+  }
+}
+
+// --- History helpers ---------------------------------------------------------
+
+/** §6: `recent` is a rolling window of the last 10 entries. */
+const HISTORY_RECENT_LIMIT = 10;
+
+/**
+ * Epley estimated one-rep max: `weight × (1 + reps / 30)`. The glossary
+ * leaves the formula to the implementer; Epley is the standard, deterministic
+ * choice. A one-rep set is already a one-rep max, so it is returned unchanged
+ * rather than inflated. Non-positive loads (machine assistance) and reps below
+ * 1 have no meaningful estimate.
+ */
+export function estimateE1rm(weight: number, reps: number): number | null {
+  if (!Number.isFinite(weight) || weight <= 0) {
+    return null;
+  }
+  if (!Number.isFinite(reps) || reps < 1) {
+    return null;
+  }
+  if (reps === 1) {
+    return weight;
+  }
+  return weight * (1 + reps / 30);
+}
+
+/** Highest {@link estimateE1rm} across an exercise's working sets. */
+function bestE1rm(sets: WorkoutSet[]): number | null {
+  let best: number | null = null;
+  for (const set of sets) {
+    if (set.is_warmup || set.weight === null || set.reps === null) {
+      continue;
+    }
+    const estimate = estimateE1rm(set.weight, set.reps);
+    if (estimate !== null && (best === null || estimate > best)) {
+      best = estimate;
+    }
+  }
+  return best;
+}
+
+/** Lexicographic `(weight, reps)` max for §6 `best_top_set` (§3 top-set rule). */
+function betterTopSet(a: TopSet | null, b: TopSet | null): TopSet | null {
+  if (a === null) {
+    return b;
+  }
+  if (b === null) {
+    return a;
+  }
+  if (b.weight !== a.weight) {
+    return b.weight > a.weight ? b : a;
+  }
+  return b.reps > a.reps ? b : a;
+}
+
+function maxNullable(a: number | null, b: number | null): number | null {
+  if (a === null) {
+    return b;
+  }
+  if (b === null) {
+    return a;
+  }
+  return a > b ? a : b;
 }
 
 // --- Real-client adapter -----------------------------------------------------
@@ -265,6 +420,59 @@ function toStoredWorkout(data: Record<string, unknown>): StoredWorkout {
     error: asNullableString(data["error"]),
     attempts: asNumber(data["attempts"]),
   };
+}
+
+function toStoredExerciseHistory(
+  data: Record<string, unknown>,
+): StoredExerciseHistory {
+  return {
+    exercise_name: asString(data["exercise_name"]),
+    best_e1rm: asNullableNumber(data["best_e1rm"]),
+    best_top_set: asNullableTopSet(data["best_top_set"]),
+    last_performed: data["last_performed"] as Timestamp,
+    recent: asRecentEntries(data["recent"]),
+  };
+}
+
+function asNullableTopSet(value: unknown): TopSet | null {
+  if (value === null || typeof value !== "object") {
+    return null;
+  }
+  const record = value as Record<string, unknown>;
+  const weight = record["weight"];
+  const unit = record["unit"];
+  const reps = record["reps"];
+  if (
+    typeof weight !== "number" ||
+    (unit !== "lb" && unit !== "kg") ||
+    typeof reps !== "number"
+  ) {
+    return null;
+  }
+  return { weight, unit, reps };
+}
+
+function asRecentEntries(value: unknown): HistoryRecentEntry[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const entries: HistoryRecentEntry[] = [];
+  for (const entry of value) {
+    if (entry === null || typeof entry !== "object") {
+      continue;
+    }
+    const record = entry as Record<string, unknown>;
+    const date = record["date"];
+    if (!(date instanceof Timestamp)) {
+      continue;
+    }
+    entries.push({
+      date,
+      top_set: asNullableTopSet(record["top_set"]),
+      volume: asNumber(record["volume"]),
+    });
+  }
+  return entries;
 }
 
 function asString(value: unknown): string {
