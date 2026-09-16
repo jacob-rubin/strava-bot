@@ -201,6 +201,17 @@ resource "google_secret_manager_secret_iam_member" "version_adder" {
   member    = "serviceAccount:${google_service_account.run.email}"
 }
 
+# §9 lists only the two Secret Manager roles, but §6 Persistence has the same
+# service reading and writing `workouts` and `history` on every request, and
+# Constraint 11 makes a Firestore failure a 500 rather than a skipped write. A
+# deployment without this is a service that answers /healthz and nothing else.
+resource "google_project_iam_member" "run_firestore" {
+  project = google_project.strava_bot.project_id
+  role    = "roles/datastore.user"
+  member  = "serviceAccount:${google_service_account.run.email}"
+}
+
+
 # Constraint 13: the endpoint is public and invokes a paid model, so the
 # --max-instances=3 cost control must be paired with a billing budget alert.
 # Formally T19's resource; landed early so no spend can happen unwatched.
