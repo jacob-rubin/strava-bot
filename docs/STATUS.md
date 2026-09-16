@@ -15,7 +15,7 @@ This is a **rendered view**. Status lives one file per task in [status/tasks/](s
 
 **Next up:** [T17 — Complete `tests/test_ingest.ts`](tasks/T17-ingest-tests.md) — the earliest task that is not finished and whose dependencies are all `done` on `main`.
 
-**Ready now:** [T17](tasks/T17-ingest-tests.md) (agent) · [T18](tasks/T18-dockerfile-local-run.md) (agent) · [T20](tasks/T20-share-sheet-probe.md) (human) · [T24](tasks/T24-pr-flags-history-context.md) (agent) · [T25](tasks/T25-probe-upload-json.md) (agent) · [T27](tasks/T27-reparse-script.md) (agent)
+**Ready now:** [T17](tasks/T17-ingest-tests.md) (agent) · [T20](tasks/T20-share-sheet-probe.md) (human) · [T24](tasks/T24-pr-flags-history-context.md) (agent) · [T25](tasks/T25-probe-upload-json.md) (agent) · [T27](tasks/T27-reparse-script.md) (agent)
 
 A task already claimed by an in-flight branch still shows as `not started` here until its PR merges. Run `npm run status:next` for the live picture, which folds in `codex/<id>-*` branches.
 
@@ -42,7 +42,7 @@ Status values: `not started` · `in progress` · `done` · `blocked` · `skipped
 | T15 | [Write `app/strava.ts`](tasks/T15-strava-client.md) | 3 ingest v1 | agent | done |  |
 | T16 | [Write `app/main.ts`](tasks/T16-ingest-endpoint.md) | 3 ingest v1 | agent | done |  |
 | T17 | [Complete `tests/test_ingest.ts`](tasks/T17-ingest-tests.md) | 3 ingest v1 | agent | not started |  |
-| T18 | [Buildpacks build and local run](tasks/T18-dockerfile-local-run.md) | 3 ingest v1 | agent | not started |  |
+| T18 | [Buildpacks build and local run](tasks/T18-dockerfile-local-run.md) | 3 ingest v1 | agent | done | Deviation: pack build not run locally (Docker Desktop engine failed to start in this non-elevated env); local run verified via npm run build, then node dist/app/main.js, /healthz -> ok (curl 127.0.0.1:8080/healthz). |
 | T19 | [Deploy to Cloud Run via Cloud Build with a budget alert](tasks/T19-cloud-run-deploy.md) | 3 ingest v1 | agent | not started | Step 3 done early in T02 — `google_billing_budget` applied at 10 USD/month (50/90/100% actual, 100% forecast). Only the Cloud Build trigger and the deploy remain |
 | T20 | [Probe what Strong's share sheet delivers](tasks/T20-share-sheet-probe.md) | 4 client | human | not started | resolves open item 1; no dependencies, run early |
 | T21 | [Wire the Shortcut and confirm the round trip](tasks/T21-shortcut-wiring-e2e.md) | 4 client | human | not started | needs open item 1 resolved |
