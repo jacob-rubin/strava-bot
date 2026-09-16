@@ -13,9 +13,9 @@ last-updated: 2026-09-15
 
 This is a **rendered view**. Status lives one file per task in [status/tasks/](status/README.md) so that tasks running in parallel never edit the same file. Regenerate with `npm run status:write`.
 
-**Next up:** [T12 — Complete `tests/test_parser.ts`](tasks/T12-parser-tests.md) — the earliest task that is not finished and whose dependencies are all `done` on `main`.
+**Next up:** [T16 — Write `app/main.ts`](tasks/T16-ingest-endpoint.md) — the earliest task that is not finished and whose dependencies are all `done` on `main`.
 
-**Ready now:** [T12](tasks/T12-parser-tests.md) (agent) · [T13](tasks/T13-store-workouts.md) (agent) · [T20](tasks/T20-share-sheet-probe.md) (human) · [T25](tasks/T25-probe-upload-json.md) (agent)
+**Ready now:** [T16](tasks/T16-ingest-endpoint.md) (agent) · [T20](tasks/T20-share-sheet-probe.md) (human) · [T23](tasks/T23-history-writes.md) (agent) · [T25](tasks/T25-probe-upload-json.md) (agent) · [T27](tasks/T27-reparse-script.md) (agent)
 
 A task already claimed by an in-flight branch still shows as `not started` here until its PR merges. Run `npm run status:next` for the live picture, which folds in `codex/<id>-*` branches.
 
@@ -36,8 +36,8 @@ Status values: `not started` · `in progress` · `done` · `blocked` · `skipped
 | T09 | [Add the share-text fixtures](tasks/T09-fixtures.md) | 2 parser | agent | done |  |
 | T10 | [Write `app/parser.ts`](tasks/T10-parser-core.md) | 2 parser | agent | done | Per-set `volume` is left at `0` for T11, which owns §3 derived values; a set line before any exercise line records a line-numbered warning rather than retaining the line content, so warnings stay safe to log under constraint 7. |
 | T11 | [Derived values, dedupe key, elapsed](tasks/T11-parser-derived-values.md) | 2 parser | agent | done |  |
-| T12 | [Complete `tests/test_parser.ts`](tasks/T12-parser-tests.md) | 2 parser | agent | not started |  |
-| T13 | [Write `app/store.ts` — `workouts`](tasks/T13-store-workouts.md) | 3 ingest v1 | agent | not started |  |
+| T12 | [Complete `tests/test_parser.ts`](tasks/T12-parser-tests.md) | 2 parser | agent | done |  |
+| T13 | [Write `app/store.ts` — `workouts`](tasks/T13-store-workouts.md) | 3 ingest v1 | agent | done | PR: https://github.com/jacob-rubin/strava-bot/pull/21 |
 | T14 | [Write `app/activity_text.ts` — deterministic activity text](tasks/T14-activity-text.md) | 3 ingest v1 | agent | done |  |
 | T15 | [Write `app/strava.ts`](tasks/T15-strava-client.md) | 3 ingest v1 | agent | done |  |
 | T16 | [Write `app/main.ts`](tasks/T16-ingest-endpoint.md) | 3 ingest v1 | agent | not started |  |
