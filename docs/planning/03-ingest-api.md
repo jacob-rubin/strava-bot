@@ -44,9 +44,9 @@ Rationale: Shortcuts has no crypto primitives, so OIDC and HMAC request signing 
 | 502    | `strava rejected: <reason>`                                                    |
 | 500    | `internal error: <request_id>`                                                 |
 
-### `GET /healthz`
+### `GET /health`
 
-Returns 200 `ok`. Unauthenticated. No dependency checks.
+Returns 200 `ok`. Unauthenticated. No dependency checks. Not `/healthz`: Google's frontend answers that path itself on `*.run.app` and never forwards it to the container, so the route would be unreachable once deployed.
 
 ### Deployment
 
