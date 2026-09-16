@@ -64,3 +64,53 @@ variable "strava_client_secret" {
   type        = string
   sensitive   = true
 }
+
+# --- T19: the build-and-deploy pipeline -------------------------------------
+
+variable "strava_client_id" {
+  description = "Strava API application client id from T01; env, not a secret (§9)."
+  type        = string
+  default     = "278290"
+}
+
+variable "local_tz" {
+  description = "LOCAL_TZ for the deployed service (§9)."
+  type        = string
+  default     = "America/Chicago"
+}
+
+variable "github_repo_uri" {
+  description = "Clone URL of the repository the Cloud Build trigger builds."
+  type        = string
+  default     = "https://github.com/jacob-rubin/strava-bot.git"
+}
+
+variable "deploy_branch" {
+  description = "Branch whose pushes run the deploy trigger."
+  type        = string
+  default     = "main"
+}
+
+# The repository is private, so these two are what let Cloud Build clone it.
+# Like every other secret here they are passed at apply time from the
+# environment; app_installation_id is not sensitive but travels with the token.
+variable "github_app_installation_id" {
+  description = "Installation id of the Cloud Build GitHub App on the repo; pass via TF_VAR_github_app_installation_id."
+  type        = number
+}
+
+variable "github_token" {
+  description = "GitHub personal access token authorizing the Cloud Build connection; pass via TF_VAR_github_token."
+  type        = string
+  sensitive   = true
+}
+
+# Cloud Build, not Terraform, creates the Cloud Run service, so the data source
+# that reads its URL back has nothing to read until the trigger has run once.
+# Leave this at true; pass -var=cloud_run_deployed=false for the first apply on
+# a project where the pipeline has never run.
+variable "cloud_run_deployed" {
+  description = "Whether the Cloud Build pipeline has already deployed the Cloud Run service."
+  type        = bool
+  default     = true
+}
