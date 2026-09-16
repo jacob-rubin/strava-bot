@@ -69,6 +69,10 @@ resource "google_cloudbuild_trigger" "deploy" {
       ]
     }
     step {
+      name = "gcr.io/cloud-builders/docker"
+      args = ["push", "${var.region}-docker.pkg.dev/${var.project_id}/strava-bot/strava-bot:latest"]
+    }
+    step {
       name       = "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
       entrypoint = "gcloud"
       args = [
@@ -96,7 +100,7 @@ output "service_url" {
 }
 ```
 
-The first step builds with **Google's native buildpacks** (`gcr.io/buildpacks/builder`) — no Dockerfile. The second step is the only place `gcloud` appears, and only inside Cloud Build; it deploys Cloud Run with the non-negotiable settings. Because Cloud Build owns the service, Terraform reads the deployed URL back through the `data` source rather than declaring the service.
+The first step builds with **Google's native buildpacks** (`gcr.io/buildpacks/builder`) — no Dockerfile. `pack` leaves the image in the worker's Docker daemon, so the second step has to push it: a build-level `images` list would not be pushed until every step had finished, which is after the deploy step needs to pull it. The third step is the only place `gcloud` appears, and only inside Cloud Build; it deploys Cloud Run with the non-negotiable settings. Because Cloud Build owns the service, Terraform reads the deployed URL back through the `data` source rather than declaring the service.
 
 `--allow-unauthenticated` disables Google's IAM check, not the application's. It is required: the Shortcut cannot mint an OIDC token.
 
