@@ -415,6 +415,14 @@ resource "google_cloudbuild_trigger" "deploy" {
       ]
     }
 
+    # pack leaves the image in the worker's Docker daemon, and the build-level
+    # "images" list is only pushed once every step has finished — which is after
+    # the deploy step below has already tried to pull it. So push it here.
+    step {
+      name = "gcr.io/cloud-builders/docker"
+      args = ["push", "${local.image}:latest"]
+    }
+
     # The only place gcloud appears, and only inside Cloud Build (ADR 0007).
     # Every flag below the image is a cost control, not a tuning knob
     # (§5 Deployment, Constraint 13).
@@ -437,10 +445,6 @@ resource "google_cloudbuild_trigger" "deploy" {
         "--quiet",
       ]
     }
-
-    # pack builds into the worker's Docker daemon; this is what pushes the
-    # result to Artifact Registry before the deploy step pulls it.
-    images = [local.image]
 
     options {
       logging = "CLOUD_LOGGING_ONLY"
