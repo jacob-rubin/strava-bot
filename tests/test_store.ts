@@ -2,7 +2,7 @@ import { Timestamp } from "@google-cloud/firestore";
 
 import { describe, expect, it } from "vitest";
 
-import type { Workout } from "../app/models.js";
+import type { Workout, WorkoutSet } from "../app/models.js";
 import {
   WorkoutStore,
   type ReceivedWorkout,
@@ -10,6 +10,7 @@ import {
   type WorkoutFirestore,
   type WorkoutQuery,
   type WorkoutQuerySnapshot,
+  type WorkoutResult,
 } from "../app/store.js";
 
 const STARTED_AT = Timestamp.fromDate(new Date("2026-09-09T06:43:00Z"));
@@ -47,58 +48,134 @@ function receivedWorkout(
   };
 }
 
+function weightRepsSet(weight: number, reps: number): WorkoutSet {
+  return {
+    kind: "weight_reps",
+    index: "1",
+    is_warmup: false,
+    volume: weight * reps,
+    weight,
+    unit: "lb",
+    reps,
+    duration_s: null,
+    distance: null,
+    distance_unit: null,
+  };
+}
+
+function deadliftWorkout(weight: number, reps: number): Workout {
+  return {
+    workout_name: "Early Morning Workout",
+    started_at: "2026-09-09T06:43:00",
+    exercises: [
+      {
+        name: "Deadlift",
+        equipment: "Barbell",
+        sets: [weightRepsSet(weight, reps)],
+      },
+    ],
+    share_slug: null,
+    warnings: [],
+  };
+}
+
+function postedResult(): WorkoutResult {
+  return {
+    status: "posted",
+    strava: {
+      activity_id: "1234567890",
+      upload_id: null,
+      url: "https://www.strava.com/activities/1234567890",
+      method: "activities",
+    },
+    error: null,
+  };
+}
+
 interface StoreStub {
   firestore: WorkoutFirestore;
   documents: Map<string, Record<string, unknown>>;
+  historyDocuments: Map<string, Record<string, unknown>>;
 }
 
 function createStoreStub(): StoreStub {
   const documents = new Map<string, Record<string, unknown>>();
+  const historyDocuments = new Map<string, Record<string, unknown>>();
+
+  const workoutDoc = (id: string) => ({
+    get: async () => {
+      const data = documents.get(id);
+      return { exists: data !== undefined, data: () => data };
+    },
+    set: async (data: Record<string, unknown>) => {
+      documents.set(id, data);
+      return {};
+    },
+    update: async (data: Record<string, unknown>) => {
+      const existing = documents.get(id);
+      if (existing === undefined) {
+        throw new Error(`Document ${id} does not exist.`);
+      }
+      documents.set(id, { ...existing, ...data });
+      return {};
+    },
+  });
+
+  const historyDoc = (id: string) => ({
+    get: async () => {
+      const data = historyDocuments.get(id);
+      return { exists: data !== undefined, data: () => data };
+    },
+    set: async (data: Record<string, unknown>) => {
+      historyDocuments.set(id, data);
+      return {};
+    },
+    update: async (data: Record<string, unknown>) => {
+      const existing = historyDocuments.get(id);
+      if (existing === undefined) {
+        throw new Error(`History document ${id} does not exist.`);
+      }
+      historyDocuments.set(id, { ...existing, ...data });
+      return {};
+    },
+  });
 
   const firestore: WorkoutFirestore = {
     collection: (collectionPath) => {
-      if (collectionPath !== "workouts") {
-        throw new Error(`Unexpected collection path: ${collectionPath}`);
+      if (collectionPath === "workouts") {
+        return {
+          doc: workoutDoc,
+          where: (fieldPath, opStr, value) => {
+            if (opStr !== "==") {
+              throw new Error(`Unexpected where operator: ${opStr}`);
+            }
+            return makeQuery((limit) => {
+              const matches = [...documents.entries()]
+                .filter(([, data]) => data[fieldPath] === value);
+              const limited = limit === null ? matches : matches.slice(0, limit);
+              return {
+                empty: limited.length === 0,
+                docs: limited.map(([, data]) => ({ data: () => data })),
+              };
+            });
+          },
+        };
       }
 
-      return {
-        doc: (id) => ({
-          get: async () => {
-            const data = documents.get(id);
-            return { exists: data !== undefined, data: () => data };
+      if (collectionPath === "history") {
+        return {
+          doc: historyDoc,
+          where: () => {
+            throw new Error("history collection does not support where.");
           },
-          set: async (data) => {
-            documents.set(id, data);
-            return {};
-          },
-          update: async (data) => {
-            const existing = documents.get(id);
-            if (existing === undefined) {
-              throw new Error(`Document ${id} does not exist.`);
-            }
-            documents.set(id, { ...existing, ...data });
-            return {};
-          },
-        }),
-        where: (fieldPath, opStr, value) => {
-          if (opStr !== "==") {
-            throw new Error(`Unexpected where operator: ${opStr}`);
-          }
-          return makeQuery((limit) => {
-            const matches = [...documents.entries()]
-              .filter(([, data]) => data[fieldPath] === value);
-            const limited = limit === null ? matches : matches.slice(0, limit);
-            return {
-              empty: limited.length === 0,
-              docs: limited.map(([, data]) => ({ data: () => data })),
-            };
-          });
-        },
-      };
+        };
+      }
+
+      throw new Error(`Unexpected collection path: ${collectionPath}`);
     },
   };
 
-  return { firestore, documents };
+  return { firestore, documents, historyDocuments };
 }
 
 function makeQuery(
@@ -265,5 +342,133 @@ describe("WorkoutStore", () => {
 
     await expect(store.findExisting("strong:x", "sha256:x")).rejects.toBe(boom);
     await expect(store.recordReceived(receivedWorkout())).rejects.toBe(boom);
+  });
+});
+
+describe("history", () => {
+  it("creates a document on the first successful post for an exercise", async () => {
+    const stub = createStoreStub();
+    const store = new WorkoutStore(stub.firestore);
+
+    await store.recordReceived(
+      receivedWorkout({
+        dedupe_key: "strong:first",
+        parsed: deadliftWorkout(315, 4),
+      }),
+    );
+    await store.recordResult("strong:first", postedResult());
+
+    expect(stub.historyDocuments.get("Deadlift")).toMatchObject({
+      exercise_name: "Deadlift",
+      best_e1rm: 357,
+      best_top_set: { weight: 315, unit: "lb", reps: 4 },
+      last_performed: STARTED_AT,
+      recent: [
+        {
+          date: STARTED_AT,
+          top_set: { weight: 315, unit: "lb", reps: 4 },
+          volume: 1260,
+        },
+      ],
+    });
+  });
+
+  it("appends to recent on a second workout for the same exercise", async () => {
+    const stub = createStoreStub();
+    const store = new WorkoutStore(stub.firestore);
+
+    await store.recordReceived(
+      receivedWorkout({
+        dedupe_key: "strong:first",
+        parsed: deadliftWorkout(315, 4),
+      }),
+    );
+    await store.recordResult("strong:first", postedResult());
+
+    await store.recordReceived(
+      receivedWorkout({
+        dedupe_key: "strong:second",
+        parsed: deadliftWorkout(320, 5),
+      }),
+    );
+    await store.recordResult("strong:second", postedResult());
+
+    const stored = stub.historyDocuments.get("Deadlift");
+    expect(stored).toMatchObject({
+      best_top_set: { weight: 320, unit: "lb", reps: 5 },
+    });
+    expect(stored?.["best_e1rm"]).toBeCloseTo(320 * (1 + 5 / 30), 6);
+
+    const recent = stored?.["recent"] as Array<Record<string, unknown>>;
+    expect(recent).toHaveLength(2);
+    expect(recent[1]).toMatchObject({
+      date: STARTED_AT,
+      top_set: { weight: 320, unit: "lb", reps: 5 },
+      volume: 1600,
+    });
+  });
+
+  it("caps recent at the last 10 entries", async () => {
+    const stub = createStoreStub();
+    const store = new WorkoutStore(stub.firestore);
+
+    for (let i = 1; i <= 11; i += 1) {
+      await store.recordReceived(
+        receivedWorkout({
+          dedupe_key: `strong:workout-${i}`,
+          parsed: deadliftWorkout(300 + i, 4),
+        }),
+      );
+      await store.recordResult(`strong:workout-${i}`, postedResult());
+    }
+
+    const stored = stub.historyDocuments.get("Deadlift");
+    const recent = stored?.["recent"] as Array<Record<string, unknown>>;
+    expect(recent).toHaveLength(10);
+    expect(recent[0]).toMatchObject({
+      top_set: { weight: 302, unit: "lb", reps: 4 },
+    });
+    expect(recent[9]).toMatchObject({
+      top_set: { weight: 311, unit: "lb", reps: 4 },
+    });
+  });
+
+  it("does not write history when the post failed", async () => {
+    const stub = createStoreStub();
+    const store = new WorkoutStore(stub.firestore);
+
+    await store.recordReceived(
+      receivedWorkout({
+        dedupe_key: "strong:failed",
+        parsed: deadliftWorkout(315, 4),
+      }),
+    );
+    await store.recordResult("strong:failed", {
+      status: "failed",
+      strava: null,
+      error: "Strava rate limit exceeded.",
+    });
+
+    expect(stub.historyDocuments.size).toBe(0);
+  });
+
+  it("reads a stored document and returns null when the exercise is unseen", async () => {
+    const stub = createStoreStub();
+    const store = new WorkoutStore(stub.firestore);
+
+    await expect(store.getExerciseHistory("Deadlift")).resolves.toBeNull();
+
+    await store.recordReceived(
+      receivedWorkout({
+        dedupe_key: "strong:first",
+        parsed: deadliftWorkout(315, 4),
+      }),
+    );
+    await store.recordResult("strong:first", postedResult());
+
+    await expect(store.getExerciseHistory("Deadlift")).resolves.toMatchObject({
+      exercise_name: "Deadlift",
+      best_e1rm: 357,
+    });
   });
 });
