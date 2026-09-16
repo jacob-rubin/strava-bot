@@ -186,7 +186,7 @@ export function createApp(options: CreateAppOptions = {}): FastifyInstance {
     void reply.code(500).type("text/plain").send(internalError(state));
   });
 
-  app.get("/healthz", async (_request, reply) => {
+  app.get("/health", async (_request, reply) => {
     const state = states.get(_request);
     if (state !== undefined) {
       state.outcome = "healthy";
