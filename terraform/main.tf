@@ -201,6 +201,17 @@ resource "google_secret_manager_secret_iam_member" "version_adder" {
   member    = "serviceAccount:${google_service_account.run.email}"
 }
 
+# §9 lists only the two Secret Manager roles, but §6 Persistence has the same
+# service reading and writing `workouts` and `history` on every request, and
+# Constraint 11 makes a Firestore failure a 500 rather than a skipped write. A
+# deployment without this is a service that answers /healthz and nothing else.
+resource "google_project_iam_member" "run_firestore" {
+  project = google_project.strava_bot.project_id
+  role    = "roles/datastore.user"
+  member  = "serviceAccount:${google_service_account.run.email}"
+}
+
+
 # Constraint 13: the endpoint is public and invokes a paid model, so the
 # --max-instances=3 cost control must be paired with a billing budget alert.
 # Formally T19's resource; landed early so no spend can happen unwatched.
@@ -241,4 +252,215 @@ resource "google_billing_budget" "monthly" {
   }
 
   depends_on = [google_project_service.enabled]
+}
+
+# ---------------------------------------------------------------------------
+# T19 — the build-and-deploy pipeline (§5 Deployment, ADR 0007)
+#
+# Terraform stops at the trigger: the Cloud Run service itself is created by
+# the pipeline below, and is read back through a data source further down.
+# ---------------------------------------------------------------------------
+
+locals {
+  # The single image the buildpacks step publishes and the deploy step pulls.
+  # Untagged here because `pack` and `gcloud run deploy` want different forms.
+  image = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.app.repository_id}/strava-bot"
+
+  # §5 Deployment shows --set-secrets with three of the four Secret-Manager
+  # variables of §9; deriving it from local.secrets binds every one of them and
+  # keeps a future secret from being silently left off the service.
+  run_secrets = join(",", [for env_var, secret in local.secrets : "${env_var}=${secret}:latest"])
+
+  # The non-secret env rows of §9. The rest of §9's env variables are optional
+  # and the service already defaults them to the documented values.
+  run_env_vars = join(",", [
+    "STRAVA_CLIENT_ID=${var.strava_client_id}",
+    "LOCAL_TZ=${var.local_tz}",
+  ])
+}
+
+# Buildpacks have no Dockerfile and no implicit registry, so the destination
+# repository has to exist before the first build.
+resource "google_artifact_registry_repository" "app" {
+  project       = google_project.strava_bot.project_id
+  location      = var.region
+  repository_id = "strava-bot"
+  format        = "DOCKER"
+  description   = "Buildpacks images for the strava-bot Cloud Run service."
+
+  depends_on = [google_project_service.enabled]
+}
+
+# The pipeline's own identity, kept separate from the runtime identity so the
+# thing that can deploy Cloud Run is not the thing that holds the Strava
+# secrets. Builds run as this account rather than the legacy Cloud Build
+# service account, which new projects no longer get.
+resource "google_service_account" "build" {
+  project      = google_project.strava_bot.project_id
+  account_id   = "strava-bot-build"
+  display_name = "strava-bot Cloud Build pipeline"
+
+  depends_on = [google_project_service.enabled]
+}
+
+resource "google_project_iam_member" "build" {
+  for_each = toset([
+    # Push the buildpacks image to the repository above.
+    "roles/artifactregistry.writer",
+    # A user-specified build service account writes its own logs.
+    "roles/logging.logWriter",
+    # Deploy the service, and set --allow-unauthenticated on it.
+    "roles/run.admin",
+  ])
+
+  project = google_project.strava_bot.project_id
+  role    = each.value
+  member  = "serviceAccount:${google_service_account.build.email}"
+}
+
+# --service-account on the deploy step assigns the runtime identity, which
+# Cloud Run only permits to a principal allowed to act as it.
+resource "google_service_account_iam_member" "build_uses_runtime_identity" {
+  service_account_id = google_service_account.run.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.build.email}"
+}
+
+# --- Source: the GitHub repository the trigger builds from --------------------
+#
+# The repository is private, so Cloud Build cannot clone it anonymously and the
+# connection is not optional. ADR 0007 rules out creating it in the Console, so
+# it is declared here and fed the two values only GitHub can issue: the Cloud
+# Build GitHub App's installation id and a personal access token, both supplied
+# at apply time from TF_VAR_* like every other secret in this config.
+
+resource "google_secret_manager_secret" "github_token" {
+  project   = google_project.strava_bot.project_id
+  secret_id = "strava-bot-github-token"
+
+  replication {
+    auto {}
+  }
+
+  depends_on = [google_project_service.enabled]
+}
+
+resource "google_secret_manager_secret_version" "github_token" {
+  secret      = google_secret_manager_secret.github_token.id
+  secret_data = var.github_token
+  enabled     = true
+}
+
+# The connection is read by Cloud Build's own service agent, not by the build
+# service account, so the accessor binding goes to the agent.
+resource "google_secret_manager_secret_iam_member" "github_token_accessor" {
+  project   = google_secret_manager_secret.github_token.project
+  secret_id = google_secret_manager_secret.github_token.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:service-${google_project.strava_bot.number}@gcp-sa-cloudbuild.iam.gserviceaccount.com"
+}
+
+resource "google_cloudbuildv2_connection" "github" {
+  project  = google_project.strava_bot.project_id
+  location = var.region
+  name     = "github"
+
+  github_config {
+    app_installation_id = var.github_app_installation_id
+
+    authorizer_credential {
+      oauth_token_secret_version = google_secret_manager_secret_version.github_token.id
+    }
+  }
+
+  depends_on = [google_secret_manager_secret_iam_member.github_token_accessor]
+}
+
+resource "google_cloudbuildv2_repository" "app" {
+  project           = google_project.strava_bot.project_id
+  location          = var.region
+  name              = "strava-bot"
+  parent_connection = google_cloudbuildv2_connection.github.name
+  remote_uri        = var.github_repo_uri
+}
+
+# --- The trigger: buildpacks build, then Cloud Run deploy --------------------
+#
+# §5 Deployment writes location = "global"; a 2nd-generation repository is
+# regional, and a trigger must sit in its repository's region, so this one is
+# regional too.
+resource "google_cloudbuild_trigger" "deploy" {
+  project  = google_project.strava_bot.project_id
+  name     = "strava-bot-deploy"
+  location = var.region
+
+  service_account = google_service_account.build.id
+
+  repository_event_config {
+    repository = google_cloudbuildv2_repository.app.id
+
+    push {
+      branch = "^${var.deploy_branch}$"
+    }
+  }
+
+  build {
+    # Google's native buildpacks — no Dockerfile (§10 Repository layout).
+    step {
+      name = "gcr.io/k8s-skaffold/pack"
+      args = [
+        "build",
+        local.image,
+        "--builder", "gcr.io/buildpacks/builder",
+      ]
+    }
+
+    # pack leaves the image in the worker's Docker daemon, and the build-level
+    # "images" list is only pushed once every step has finished — which is after
+    # the deploy step below has already tried to pull it. So push it here.
+    step {
+      name = "gcr.io/cloud-builders/docker"
+      args = ["push", "${local.image}:latest"]
+    }
+
+    # The only place gcloud appears, and only inside Cloud Build (ADR 0007).
+    # Every flag below the image is a cost control, not a tuning knob
+    # (§5 Deployment, Constraint 13).
+    step {
+      name       = "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
+      entrypoint = "gcloud"
+      args = [
+        "run", "deploy", "strava-bot",
+        "--project", var.project_id,
+        "--image", "${local.image}:latest",
+        "--region", var.region,
+        "--service-account", google_service_account.run.email,
+        "--allow-unauthenticated",
+        "--max-instances", "3",
+        "--concurrency", "4",
+        "--memory", "512Mi",
+        "--timeout", "120",
+        "--set-env-vars", local.run_env_vars,
+        "--set-secrets", local.run_secrets,
+        "--quiet",
+      ]
+    }
+
+    options {
+      logging = "CLOUD_LOGGING_ONLY"
+    }
+  }
+}
+
+# Cloud Build owns the service, so Terraform reads the deployed URL back rather
+# than declaring it. The data source 404s until the pipeline has run once, which
+# would abort the very apply that creates the pipeline — hence the flag. Leave
+# it at its default; pass -var=cloud_run_deployed=false only for the first apply
+# against a project where the trigger has never run.
+data "google_cloud_run_service" "strava_bot" {
+  count = var.cloud_run_deployed ? 1 : 0
+
+  project  = google_project.strava_bot.project_id
+  name     = "strava-bot"
+  location = var.region
 }

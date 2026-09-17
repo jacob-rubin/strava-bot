@@ -19,7 +19,7 @@ last-updated: 2026-09-14
 | `MAX_BODY_BYTES`               | env            | default `65536`              |
 | `ELAPSED_CAP_S`                | env            | default `14400`              |
 
-The service needs `roles/secretmanager.secretAccessor` and, for refresh-token rotation, `roles/secretmanager.secretVersionAdder`.
+The service needs `roles/secretmanager.secretAccessor` and, for refresh-token rotation, `roles/secretmanager.secretVersionAdder`. It also needs `roles/datastore.user`, because every request reads and writes the Firestore collections of [§6](04-persistence.md#6-persistence).
 
 ---
 
