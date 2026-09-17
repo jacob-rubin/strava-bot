@@ -22,7 +22,15 @@ import {
   type Query,
 } from "@google-cloud/firestore";
 
-import type { ExerciseSummary, TopSet, Workout, WorkoutSet } from "./models.js";
+import type {
+  ExerciseHistory,
+  ExerciseSummary,
+  HistoryContext,
+  TopSet,
+  Workout,
+  WorkoutSet,
+  WorkoutSummary,
+} from "./models.js";
 import { summarizeWorkout } from "./parser.js";
 
 const WORKOUTS_COLLECTION = "workouts";
@@ -243,6 +251,25 @@ export class WorkoutStore {
   }
 
   /**
+   * Read the §6 activity-text context for a workout before the post. Each
+   * exercise's history document is read by base name; a missing document
+   * leaves the exercise out of the context (§6: the omit-comparative-claims
+   * rule applies per exercise). The caller supplies the workout's start
+   * timestamp so `days_since_last` is measured against this workout rather
+   * than against server receipt time.
+   */
+  async getHistoryContext(
+    summary: WorkoutSummary,
+    startedAt: Timestamp,
+  ): Promise<HistoryContext> {
+    const names = [...new Set(summary.exercises.map((exercise) => exercise.name))];
+    const entries = await Promise.all(
+      names.map(async (name) => [name, await this.getExerciseHistory(name)] as const),
+    );
+    return buildHistoryContext(summary, new Map(entries), startedAt);
+  }
+
+  /**
    * Rolling update of one exercise's history document: raise `best_e1rm` and
    * `best_top_set` against the stored values, bump `last_performed`, and keep
    * `recent` capped at its last {@link HISTORY_RECENT_LIMIT} entries (§6).
@@ -347,6 +374,86 @@ function maxNullable(a: number | null, b: number | null): number | null {
     return a;
   }
   return a > b ? a : b;
+}
+
+const MS_PER_DAY = 86_400_000;
+
+/**
+ * Whole days from a stored `last_performed` timestamp to this workout's
+ * start. Clamped at zero for a workout and history entry that share a day
+ * (or for a clock skew that would otherwise report a negative gap).
+ */
+function daysSince(lastPerformed: Timestamp, startedAt: Timestamp): number {
+  const differenceMs = startedAt.toMillis() - lastPerformed.toMillis();
+  return Math.max(0, Math.floor(differenceMs / MS_PER_DAY));
+}
+
+/**
+ * §6 `volume_trend`: null under two data points, otherwise the direction
+ * from the oldest to the newest volume in the rolling `recent` window.
+ */
+function volumeTrend(
+  recent: HistoryRecentEntry[],
+): ExerciseHistory["volume_trend"] {
+  if (recent.length < 2) {
+    return null;
+  }
+  const first = recent[0]?.volume ?? 0;
+  const last = recent[recent.length - 1]?.volume ?? 0;
+  if (last > first) {
+    return "up";
+  }
+  if (last < first) {
+    return "down";
+  }
+  return "flat";
+}
+
+/**
+ * Assemble the §6 `HistoryContext` for one workout from stored `history`
+ * documents. Pure and synchronous: the caller reads the documents and passes
+ * them keyed by base exercise name (`null` for an unseen exercise).
+ *
+ * - Unseen exercises are left out of both maps (§6: the omit-comparative-
+ *   claims rule applies per exercise).
+ * - `days_since_last` is null only when the exercise was never performed
+ *   before; once a history document exists it is always a whole-day count.
+ * - PR flags are computed here (ADR 0005); the formatter only consumes the
+ *   explicit booleans and never infers a PR itself.
+ */
+export function buildHistoryContext(
+  summary: WorkoutSummary,
+  histories: ReadonlyMap<string, StoredExerciseHistory | null>,
+  startedAt: Timestamp,
+): HistoryContext {
+  const perExercise: Record<string, ExerciseHistory> = {};
+  const prFlags: Record<string, boolean> = {};
+
+  for (const exercise of summary.exercises) {
+    const stored = histories.get(exercise.name);
+    if (stored === undefined || stored === null) {
+      continue;
+    }
+
+    perExercise[exercise.name] = {
+      best_e1rm: stored.best_e1rm,
+      best_top_set: stored.best_top_set,
+      days_since_last: daysSince(stored.last_performed, startedAt),
+      volume_trend: volumeTrend(stored.recent),
+    };
+
+    const currentBest = bestE1rm(exercise.sets);
+    const previousBest = stored.best_e1rm;
+    if (
+      currentBest !== null &&
+      previousBest !== null &&
+      currentBest > previousBest
+    ) {
+      prFlags[`${exercise.name}:weight`] = true;
+    }
+  }
+
+  return { per_exercise: perExercise, pr_flags: prFlags };
 }
 
 // --- Real-client adapter -----------------------------------------------------

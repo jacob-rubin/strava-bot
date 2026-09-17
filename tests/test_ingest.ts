@@ -17,6 +17,7 @@ import {
   type IngestSettings,
   type WorkoutStoreLike,
 } from "../app/main.js";
+import type { HistoryContext } from "../app/models.js";
 import type {
   ReceivedWorkout,
   StoredWorkout,
@@ -67,6 +68,11 @@ class FakeStore implements WorkoutStoreLike {
   readonly received: ReceivedWorkout[] = [];
   readonly results: { dedupeKey: string; result: WorkoutResult }[] = [];
   readonly docs = new Map<string, StoredWorkout>();
+  historyContext: HistoryContext = { per_exercise: {}, pr_flags: {} };
+
+  async getHistoryContext(): Promise<HistoryContext> {
+    return this.historyContext;
+  }
 
   async findExisting(
     dedupeKey: string,
