@@ -47,16 +47,25 @@ export interface StravaUsage {
   readRateLimitUsage: string;
 }
 
+/**
+ * A safe operational category for a rejected Strava request.  This is kept
+ * separate from Strava's response text so request logs can distinguish a
+ * refresh failure from an activity rejection without retaining that text.
+ */
+export type StravaFailureStage = "token_refresh" | "create_activity";
+
 export class StravaApiError extends Error {
   readonly status: number;
   readonly usage: StravaUsage | null;
   readonly fault?: string;
+  readonly stage?: StravaFailureStage;
 
   constructor(
     status: number,
     reason: string,
     usage: StravaUsage | null,
     fault?: string,
+    stage?: StravaFailureStage,
   ) {
     super(reason);
     this.name = "StravaApiError";
@@ -64,6 +73,9 @@ export class StravaApiError extends Error {
     this.usage = usage;
     if (fault !== undefined) {
       this.fault = fault;
+    }
+    if (stage !== undefined) {
+      this.stage = stage;
     }
   }
 }
@@ -199,6 +211,7 @@ export class StravaClient {
         "Strava token refresh failed: " + reason,
         usageFrom(response.headers),
         reason,
+        "token_refresh",
       );
     }
 
@@ -224,6 +237,8 @@ export class StravaClient {
         response.status,
         "Strava token refresh response was missing required fields.",
         usageFrom(response.headers),
+        undefined,
+        "token_refresh",
       );
     }
 
@@ -287,6 +302,7 @@ export class StravaClient {
         "Strava rate limit exceeded.",
         usage,
         "Rate Limit Exceeded",
+        "create_activity",
       );
     }
 
@@ -297,7 +313,13 @@ export class StravaClient {
         response.status,
       );
       logUsageLine(this.#log, "create-activity", response.status, usage);
-      throw new StravaApiError(response.status, reason, usage, reason);
+      throw new StravaApiError(
+        response.status,
+        reason,
+        usage,
+        reason,
+        "create_activity",
+      );
     }
 
     const usage = usageFrom(response.headers);

@@ -324,6 +324,33 @@ describe("ingest processing order", () => {
     expect(doc?.status).toBe("failed");
     expect(doc?.strava).toBeNull();
   });
+
+  it("retries a failed Strava post without replacing its idempotency record", async () => {
+    const strava = new FakeStrava();
+    strava.nextError = new StravaApiError(
+      429,
+      "Strava rate limit exceeded.",
+      null,
+      "Rate Limit Exceeded",
+      "create_activity",
+    );
+    const { app, store } = harness({ strava });
+
+    const first = await post(app, { payload: VALID_SHARE_TEXT });
+    expect(first.statusCode).toBe(502);
+    expect(store.docs.get("strong:k3m8q2xz")?.status).toBe("failed");
+
+    strava.nextError = null;
+    const retry = await post(app, { payload: VALID_SHARE_TEXT });
+
+    expect(retry.statusCode).toBe(200);
+    expect(retry.body).toMatch(/^posted: /);
+    expect(strava.calls).toHaveLength(2);
+    expect(store.received).toHaveLength(1);
+    expect(store.results).toHaveLength(2);
+    expect(store.docs.get("strong:k3m8q2xz")?.status).toBe("posted");
+    expect(store.docs.get("strong:k3m8q2xz")?.attempts).toBe(2);
+  });
 });
 
 describe("MVP scope", () => {
@@ -362,6 +389,9 @@ describe("request logging", () => {
     expect(response.statusCode).toBe(200);
     expect(records).toHaveLength(1);
     const record = records[0];
+    if (record === undefined) {
+      throw new Error("expected one request log record");
+    }
     expect(record.raw_text).toBe(VALID_SHARE_TEXT);
     expect(record.body_bytes).toBe(Buffer.byteLength(VALID_SHARE_TEXT, "utf8"));
     expect(record.content_type).toBe("text/plain; charset=utf-8");
@@ -376,8 +406,12 @@ describe("request logging", () => {
 
     expect(response.statusCode).toBe(200);
     expect(records).toHaveLength(1);
-    expect(records[0].raw_text).toBeUndefined();
-    expect(records[0].body_bytes).toBeGreaterThan(0);
+    const record = records[0];
+    if (record === undefined) {
+      throw new Error("expected one request log record");
+    }
+    expect(record.raw_text).toBeUndefined();
+    expect(record.body_bytes).toBeGreaterThan(0);
   });
 
   it("logs raw_text for an unparseable body, which is the point of the flag", async () => {
@@ -388,7 +422,35 @@ describe("request logging", () => {
     const response = await post(app, { payload: raw });
 
     expect(response.statusCode).toBe(400);
-    expect(records[0].raw_text).toBe(raw);
+    const record = records[0];
+    if (record === undefined) {
+      throw new Error("expected one request log record");
+    }
+    expect(record.raw_text).toBe(raw);
+  });
+
+  it("logs a safe Strava failure stage without the provider fault text", async () => {
+    const records: RequestLog[] = [];
+    const strava = new FakeStrava();
+    strava.nextError = new StravaApiError(
+      400,
+      "provider fault text that must stay out of structured categories",
+      null,
+      "provider fault text that must stay out of structured categories",
+      "create_activity",
+    );
+    const { app } = harness({ strava, log: (r) => records.push(r) });
+
+    const response = await post(app, { payload: VALID_SHARE_TEXT });
+
+    expect(response.statusCode).toBe(502);
+    const record = records[0];
+    if (record === undefined) {
+      throw new Error("expected one request log record");
+    }
+    expect(record.outcome).toBe("strava_rejected");
+    expect(record.strava_failure_stage).toBe("create_activity");
+    expect(JSON.stringify(record)).not.toContain("provider fault text");
   });
 
   it("never logs a secret, even with DEBUG_LOG_RAW_TEXT on (constraint 7)", async () => {
