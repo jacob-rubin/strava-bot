@@ -15,7 +15,7 @@ This is a **rendered view**. Status lives one file per task in [status/tasks/](s
 
 **Next up:** [T20 — Probe what Strong's share sheet delivers](tasks/T20-share-sheet-probe.md) — the earliest task that is not finished and whose dependencies are all `done` on `main`.
 
-**Ready now:** [T20](tasks/T20-share-sheet-probe.md) (human) · [T24](tasks/T24-pr-flags-history-context.md) (agent) · [T25](tasks/T25-probe-upload-json.md) (agent) · [T27](tasks/T27-reparse-script.md) (agent)
+**Ready now:** [T20](tasks/T20-share-sheet-probe.md) (human) · [T25](tasks/T25-probe-upload-json.md) (agent) · [T27](tasks/T27-reparse-script.md) (agent)
 
 A task already claimed by an in-flight branch still shows as `not started` here until its PR merges. Run `npm run status:next` for the live picture, which folds in `codex/<id>-*` branches.
 
@@ -48,7 +48,7 @@ Status values: `not started` · `in progress` · `done` · `blocked` · `skipped
 | T21 | [Wire the Shortcut and confirm the round trip](tasks/T21-shortcut-wiring-e2e.md) | 4 client | human | not started | needs open item 1 resolved |
 | T22 | [Optional AI-generated activity text](tasks/T22-post-mvp-ai-text.md) | post-MVP optional | — | skipped | Removed from the MVP; pursue only under a separate future design and approval |
 | T23 | [Add the `history` collection](tasks/T23-history-writes.md) | 5 history and PRs | agent | done | Epley used for best_e1rm (glossary leaves the formula to the implementer); history write folded into recordResult on status=posted. |
-| T24 | [Build `HistoryContext` and PR flags](tasks/T24-pr-flags-history-context.md) | 5 history and PRs | agent | not started | no longer depends on T22 |
+| T24 | [Build `HistoryContext` and PR flags](tasks/T24-pr-flags-history-context.md) | 5 history and PRs | agent | done | no longer depends on T22; volume_trend is oldest-vs-newest across recent, and pr_flags cover weight (e1rm) only |
 | T25 | [Probe `POST /uploads` for JSON sets](tasks/T25-probe-upload-json.md) | 6 optional | agent | not started | resolves open item 3 |
 | T26 | [Structured upload behind the flag](tasks/T26-structured-upload.md) | 6 optional | agent | not started | only if T25 succeeds |
 | T27 | [Write `scripts/reparse.ts`](tasks/T27-reparse-script.md) | 6 optional tooling | agent | not started |  |
