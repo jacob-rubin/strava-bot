@@ -53,6 +53,7 @@ export interface IngestSettings {
   readonly localTz: string;
   readonly maxBodyBytes: number;
   readonly elapsedCapS: number;
+  readonly debugLogRawText: boolean;
   getIngestKey(): Promise<string>;
   getIngestPathToken(): Promise<string>;
 }
@@ -81,6 +82,10 @@ export interface RequestLog {
   elapsed_s: number | null;
   strava_latency_s: number | null;
   rate_limit_headers: StravaUsage | null;
+  body_bytes: number | null;
+  content_type: string | null;
+  /** Present only when DEBUG_LOG_RAW_TEXT is enabled. Never a secret. */
+  raw_text?: string;
 }
 
 export interface CreateAppOptions {
@@ -99,6 +104,9 @@ interface RequestState {
   stravaLatencyS: number | null;
   rateLimitHeaders: StravaUsage | null;
   authFailed: boolean;
+  bodyBytes: number | null;
+  contentType: string | null;
+  rawText: string | null;
 }
 
 /**
@@ -148,6 +156,9 @@ export function createApp(options: CreateAppOptions = {}): FastifyInstance {
       stravaLatencyS: null,
       rateLimitHeaders: null,
       authFailed: false,
+      bodyBytes: null,
+      contentType: null,
+      rawText: null,
     });
     done();
   });
@@ -155,14 +166,22 @@ export function createApp(options: CreateAppOptions = {}): FastifyInstance {
   app.addHook("onResponse", (request, _reply, done) => {
     const state = states.get(request);
     if (state !== undefined && !state.authFailed) {
-      log({
+      const record: RequestLog = {
         request_id: state.requestId,
         dedupe_key: state.dedupeKey,
         outcome: state.outcome,
         elapsed_s: state.elapsedS,
         strava_latency_s: state.stravaLatencyS,
         rate_limit_headers: state.rateLimitHeaders,
-      });
+        body_bytes: state.bodyBytes,
+        content_type: state.contentType,
+      };
+      // Constraint 7 / ADR 0011: raw_text is loggable behind this flag. A
+      // secret still never reaches this record under any configuration.
+      if (settings.debugLogRawText && state.rawText !== null) {
+        record.raw_text = state.rawText;
+      }
+      log(record);
     }
     // For bad auth, do not log request metadata. This one counter-shaped line
     // is the only authentication-failure signal permitted by §11.
@@ -230,6 +249,11 @@ export function createApp(options: CreateAppOptions = {}): FastifyInstance {
     handler: async (request, reply) => {
       const state = states.get(request);
       const rawText = requestText(request);
+      if (state !== undefined) {
+        state.bodyBytes = Buffer.byteLength(rawText, "utf8");
+        state.contentType = headerValue(request.headers["content-type"]) || null;
+        state.rawText = rawText;
+      }
       const receivedAt = DateTime.fromJSDate(now(), { zone: settings.localTz });
 
       let workout;
