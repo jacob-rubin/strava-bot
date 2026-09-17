@@ -13,9 +13,9 @@ last-updated: 2026-09-16
 
 This is a **rendered view**. Status lives one file per task in [status/tasks/](status/README.md) so that tasks running in parallel never edit the same file. Regenerate with `npm run status:write`.
 
-**Next up:** [T20 — Probe what Strong's share sheet delivers](tasks/T20-share-sheet-probe.md) — the earliest task that is not finished and whose dependencies are all `done` on `main`.
+**Next up:** [T21 — Wire the Shortcut and confirm the round trip](tasks/T21-shortcut-wiring-e2e.md) — the earliest task that is not finished and whose dependencies are all `done` on `main`.
 
-**Ready now:** [T20](tasks/T20-share-sheet-probe.md) (human) · [T25](tasks/T25-probe-upload-json.md) (agent) · [T27](tasks/T27-reparse-script.md) (agent)
+**Ready now:** [T21](tasks/T21-shortcut-wiring-e2e.md) (human) · [T25](tasks/T25-probe-upload-json.md) (agent) · [T27](tasks/T27-reparse-script.md) (agent)
 
 A task already claimed by an in-flight branch still shows as `not started` here until its PR merges. Run `npm run status:next` for the live picture, which folds in `codex/<id>-*` branches.
 
@@ -44,7 +44,7 @@ Status values: `not started` · `in progress` · `done` · `blocked` · `skipped
 | T17 | [Complete `tests/test_ingest.ts`](tasks/T17-ingest-tests.md) | 3 ingest v1 | agent | done |  |
 | T18 | [Buildpacks build and local run](tasks/T18-dockerfile-local-run.md) | 3 ingest v1 | agent | done | Deviation: pack build not run locally (Docker Desktop engine failed to start in this non-elevated env); local run verified via npm run build, then node dist/app/main.js, /healthz -> ok (curl 127.0.0.1:8080/healthz). |
 | T19 | [Deploy to Cloud Run via Cloud Build with a budget alert](tasks/T19-cloud-run-deploy.md) | 3 ingest v1 | agent | done | Step 3 done early in T02 — `google_billing_budget` applied at 10 USD/month (50/90/100% actual, 100% forecast). Service live at `https://strava-bot-<hash>-uc.a.run.app`; `terraform output -raw ingest_url` has the `path_token` form for T21 Deviations: trigger is regional, not `location = "global"` — a 2nd-gen repository is regional and its trigger must match. Added a `docker push` step because §5's pipeline never pushed the buildpacks image and the first build failed on `Image ... not found`. Granted the runtime account `roles/datastore.user`, which §9 omitted, so §6's Firestore writes work. Moved the health check to `/health`: Google's frontend answers `/healthz` itself on `*.run.app` and never forwards it. Also declares the Artifact Registry repository, a `strava-bot-build` identity, and the GitHub connection, none of which §5 mentions but without which the trigger cannot run. The apply destroyed the stale `llm-api-key` secret T05 removed from config but never applied. The T16/T18/T19 runbooks still say `/healthz` |
-| T20 | [Probe what Strong's share sheet delivers](tasks/T20-share-sheet-probe.md) | 4 client | human | not started | resolves open item 1; no dependencies, run early |
+| T20 | [Probe what Strong's share sheet delivers](tasks/T20-share-sheet-probe.md) | 4 client | human | done | Resolved open item 1: Strong's share sheet delivers the full workout text, so the share-sheet path in section 14 is viable and T21 needs no `Get Clipboard` fallback. Open item 2 (slug stability) was not exercised - no second share was compared - so it stays unresolved; it is non-blocking. |
 | T21 | [Wire the Shortcut and confirm the round trip](tasks/T21-shortcut-wiring-e2e.md) | 4 client | human | not started | needs open item 1 resolved |
 | T22 | [Optional AI-generated activity text](tasks/T22-post-mvp-ai-text.md) | post-MVP optional | — | skipped | Removed from the MVP; pursue only under a separate future design and approval |
 | T23 | [Add the `history` collection](tasks/T23-history-writes.md) | 5 history and PRs | agent | done | Epley used for best_e1rm (glossary leaves the formula to the implementer); history write folded into recordResult on status=posted. |
@@ -59,7 +59,7 @@ Dependencies live in [tasks/README.md](tasks/README.md) and in each task's heade
 
 | # | Item — defined in [§15](planning/11-open-items-and-sources.md#15-open-items) | Status | Resolved by |
 | - | ---- | ------ | ----------- |
-| 1 | Does the share sheet deliver full text or only the URL? | unresolved — blocks T21 | [T20](tasks/T20-share-sheet-probe.md) |
+| 1 | Does the share sheet deliver full text or only the URL? | resolved — share sheet delivers full text; T21 uses the share-sheet path — Resolved 2026-09-16 (T20): sharing a finished Strong workout into a one-action `Quick Look` shortcut delivered the **full workout text block**, not just the `link.strong.app` URL. The share-sheet client in section 14 is therefore viable as specified, and T21 does not need the `Get Clipboard` / Back Tap fallback. | [T20](tasks/T20-share-sheet-probe.md) |
 | 2 | Is the `link.strong.app` slug stable across shares? | unresolved — non-blocking, content-hash guard covers it either way; T20 answers it incidentally | [T20](tasks/T20-share-sheet-probe.md) |
 | 3 | Does `POST /uploads` accept JSON, and is the field `data_type` or `dataType`? | unresolved — blocks T26 only | [T25](tasks/T25-probe-upload-json.md) |
 | 4 | Does `POST /activities` require `type` alongside `sport_type`? | resolved — send both; confirmed against the live API — No. Sending `type` and `sport_type` together is accepted: two consecutive creates returned `201` on 2026-09-15 (T07), neither with a `400` naming either field. Keep sending both, as §7.4 specifies. | [T07](tasks/T07-manual-create-activity.md) |
