@@ -47,7 +47,6 @@ Task ids are stable. A task inserted later gets a suffixed id (`T13a`) rather th
 | [T19 — Deploy to Cloud Run via Cloud Build with a budget alert](T19-cloud-run-deploy.md) | 3 ingest v1 | agent | T03, T17, T18 |
 | [T20 — Probe what Strong's share sheet delivers](T20-share-sheet-probe.md) | 4 client | human | — |
 | [T21 — Wire the Shortcut and confirm the round trip](T21-shortcut-wiring-e2e.md) | 4 client | human | T19, T20 |
-| [T22 — Optional AI-generated activity text](T22-post-mvp-ai-text.md) | post-MVP optional | — | — |
 | [T23 — Add the `history` collection](T23-history-writes.md) | 5 history and PRs | agent | T13 |
 | [T24 — Build `HistoryContext` and PR flags](T24-pr-flags-history-context.md) | 5 history and PRs | agent | T14, T23 |
 | [T25 — Probe `POST /uploads` for JSON sets](T25-probe-upload-json.md) | 6 optional | agent | T15 |

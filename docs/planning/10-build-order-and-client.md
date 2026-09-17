@@ -16,7 +16,7 @@ The six steps below are MVP phases. Each is decomposed into atomic task runbooks
 5. **History and PRs.** `history` collection and code-computed PR flags for deterministic descriptions. → [T23](../tasks/T23-history-writes.md), [T24](../tasks/T24-pr-flags-history-context.md)
 6. **Optional MVP tooling.** Probe `[U]` structured uploads; enable the flag only if the probe succeeds. → [T25](../tasks/T25-probe-upload-json.md), [T26](../tasks/T26-structured-upload.md), plus tooling [T27](../tasks/T27-reparse-script.md)
 
-AI-generated activity text is outside the MVP build order. [T22](../tasks/T22-post-mvp-ai-text.md) is retained only as a skipped placeholder so task ids and project history remain stable.
+AI-generated activity text is outside the MVP build order. Its archived placeholder lives in the [AI post-MVP archive](../post-mvp/ai/T22-optional-activity-text.md), outside the MVP task index and status ledger.
 
 ---
 
