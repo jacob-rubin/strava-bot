@@ -21,7 +21,9 @@ last-updated: 2026-09-14
 
 Retries are the user's job — tapping Share again is idempotent by construction. Do not build a background retry queue.
 
-Log one structured line per request: `request_id`, `dedupe_key`, outcome, `elapsed_s`, Strava latency, rate-limit headers. **Never log `raw_text` or any secret.**
+Log one structured line per request: `request_id`, `dedupe_key`, outcome, `elapsed_s`, Strava latency, rate-limit headers. Add `body_bytes` and `content_type` so a malformed client request is diagnosable, and `raw_text` when `DEBUG_LOG_RAW_TEXT` is enabled (it defaults to `true`).
+
+**Never log a secret** — not `INGEST_KEY`, `INGEST_PATH_TOKEN`, the Strava client secret or refresh token, nor any value supplied as one. An auth failure still emits a bare counter and nothing else. Logging `raw_text` is permitted and deliberate; see [ADR 0011](../decisions/0011-allow-raw-text-debug-logging.md) for the retention tradeoff that buys.
 
 ---
 

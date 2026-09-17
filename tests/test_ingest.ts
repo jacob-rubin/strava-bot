@@ -15,6 +15,7 @@ import {
   createApp,
   type ActivityClient,
   type IngestSettings,
+  type RequestLog,
   type WorkoutStoreLike,
 } from "../app/main.js";
 import type { HistoryContext } from "../app/models.js";
@@ -53,6 +54,7 @@ class FakeSettings implements IngestSettings {
   constructor(
     readonly ingestKey = "correct-key",
     readonly pathToken = "correct-token",
+    readonly debugLogRawText = true,
   ) {}
 
   async getIngestKey(): Promise<string> {
@@ -152,6 +154,7 @@ function harness(overrides: {
   settings?: FakeSettings;
   store?: FakeStore;
   strava?: FakeStrava;
+  log?: (record: RequestLog) => void;
 } = {}): Harness {
   const settings = overrides.settings ?? new FakeSettings();
   const store = overrides.store ?? new FakeStore();
@@ -161,7 +164,7 @@ function harness(overrides: {
     store,
     strava,
     now: () => new Date("2026-09-09T07:43:00Z"),
-    log: () => undefined,
+    log: overrides.log ?? (() => undefined),
   });
   return { app, store, strava, settings };
 }
@@ -346,5 +349,69 @@ describe("MVP scope", () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+});
+
+describe("request logging", () => {
+  it("logs raw_text, body_bytes, and content_type when DEBUG_LOG_RAW_TEXT is on", async () => {
+    const records: RequestLog[] = [];
+    const { app } = harness({ log: (r) => records.push(r) });
+
+    const response = await post(app, { payload: VALID_SHARE_TEXT });
+
+    expect(response.statusCode).toBe(200);
+    expect(records).toHaveLength(1);
+    const record = records[0];
+    expect(record.raw_text).toBe(VALID_SHARE_TEXT);
+    expect(record.body_bytes).toBe(Buffer.byteLength(VALID_SHARE_TEXT, "utf8"));
+    expect(record.content_type).toBe("text/plain; charset=utf-8");
+  });
+
+  it("omits raw_text when DEBUG_LOG_RAW_TEXT is off but keeps the metadata", async () => {
+    const records: RequestLog[] = [];
+    const settings = new FakeSettings("correct-key", "correct-token", false);
+    const { app } = harness({ settings, log: (r) => records.push(r) });
+
+    const response = await post(app, { payload: VALID_SHARE_TEXT });
+
+    expect(response.statusCode).toBe(200);
+    expect(records).toHaveLength(1);
+    expect(records[0].raw_text).toBeUndefined();
+    expect(records[0].body_bytes).toBeGreaterThan(0);
+  });
+
+  it("logs raw_text for an unparseable body, which is the point of the flag", async () => {
+    const records: RequestLog[] = [];
+    const { app } = harness({ log: (r) => records.push(r) });
+    const raw = "some unrecognised set format 3x5 @ 225";
+
+    const response = await post(app, { payload: raw });
+
+    expect(response.statusCode).toBe(400);
+    expect(records[0].raw_text).toBe(raw);
+  });
+
+  it("never logs a secret, even with DEBUG_LOG_RAW_TEXT on (constraint 7)", async () => {
+    const records: RequestLog[] = [];
+    const { app } = harness({ log: (r) => records.push(r) });
+
+    await post(app, { payload: VALID_SHARE_TEXT });
+    const wrongKey = await post(app, { key: "leak-me-key", payload: VALID_SHARE_TEXT });
+
+    expect(wrongKey.statusCode).toBe(404);
+    const serialised = JSON.stringify(records);
+    expect(serialised).not.toContain("correct-key");
+    expect(serialised).not.toContain("correct-token");
+    expect(serialised).not.toContain("leak-me-key");
+  });
+
+  it("logs only a bare counter for an auth failure (constraint 3)", async () => {
+    const records: RequestLog[] = [];
+    const { app } = harness({ log: (r) => records.push(r) });
+
+    const response = await post(app, { key: "wrong-key", payload: VALID_SHARE_TEXT });
+
+    expect(response.statusCode).toBe(404);
+    expect(records).toHaveLength(0);
   });
 });
