@@ -41,6 +41,7 @@ import {
   StravaClient,
   type CreateActivityInput,
   type CreateActivityResult,
+  type StravaFailureStage,
   type StravaSettings,
   type StravaUsage,
 } from "./strava.js";
@@ -81,6 +82,7 @@ export interface RequestLog {
   outcome: string;
   elapsed_s: number | null;
   strava_latency_s: number | null;
+  strava_failure_stage: StravaFailureStage | "unknown" | null;
   rate_limit_headers: StravaUsage | null;
   body_bytes: number | null;
   content_type: string | null;
@@ -102,6 +104,7 @@ interface RequestState {
   elapsedS: number | null;
   outcome: string;
   stravaLatencyS: number | null;
+  stravaFailureStage: StravaFailureStage | "unknown" | null;
   rateLimitHeaders: StravaUsage | null;
   authFailed: boolean;
   bodyBytes: number | null;
@@ -154,6 +157,7 @@ export function createApp(options: CreateAppOptions = {}): FastifyInstance {
       elapsedS: null,
       outcome: "internal_error",
       stravaLatencyS: null,
+      stravaFailureStage: null,
       rateLimitHeaders: null,
       authFailed: false,
       bodyBytes: null,
@@ -172,6 +176,7 @@ export function createApp(options: CreateAppOptions = {}): FastifyInstance {
         outcome: state.outcome,
         elapsed_s: state.elapsedS,
         strava_latency_s: state.stravaLatencyS,
+        strava_failure_stage: state.stravaFailureStage,
         rate_limit_headers: state.rateLimitHeaders,
         body_bytes: state.bodyBytes,
         content_type: state.contentType,
@@ -298,7 +303,7 @@ export function createApp(options: CreateAppOptions = {}): FastifyInstance {
         return failInternal(reply, state);
       }
 
-      if (existing !== null) {
+      if (existing !== null && existing.status !== "failed") {
         if (state !== undefined) {
           state.outcome = "already_posted";
         }
@@ -307,6 +312,12 @@ export function createApp(options: CreateAppOptions = {}): FastifyInstance {
           .type("text/plain")
           .send(limitResponse(`already posted: ${displayUrl(existing.strava?.url)}`));
       }
+
+      // A rejected Strava request has a durable record but no activity.  The
+      // owner retries by sharing again, so preserve that record (and its
+      // attempt count) rather than treating it as a completed duplicate.
+      const resultDedupeKey =
+        existing?.status === "failed" ? existing.dedupe_key : workoutDedupeKey;
 
       const summary = summarizeWorkout(workout);
       const elapsedS = elapsedSeconds(
@@ -323,18 +334,20 @@ export function createApp(options: CreateAppOptions = {}): FastifyInstance {
         DateTime.fromISO(workout.started_at, { zone: settings.localTz }).toJSDate(),
       );
 
-      try {
-        await store.recordReceived({
-          dedupe_key: workoutDedupeKey,
-          content_hash: workoutContentHash,
-          raw_text: rawText,
-          parsed: workout,
-          started_at: startedAt,
-          elapsed_s: elapsedS,
-          received_at: Timestamp.fromDate(receivedAt.toJSDate()),
-        });
-      } catch {
-        return failInternal(reply, state);
+      if (existing === null) {
+        try {
+          await store.recordReceived({
+            dedupe_key: workoutDedupeKey,
+            content_hash: workoutContentHash,
+            raw_text: rawText,
+            parsed: workout,
+            started_at: startedAt,
+            elapsed_s: elapsedS,
+            received_at: Timestamp.fromDate(receivedAt.toJSDate()),
+          });
+        } catch {
+          return failInternal(reply, state);
+        }
       }
 
       // §6: read history before the post so this workout never compares
@@ -363,9 +376,11 @@ export function createApp(options: CreateAppOptions = {}): FastifyInstance {
         if (state !== undefined) {
           state.stravaLatencyS = secondsSince(stravaStartedAt);
           state.rateLimitHeaders = error instanceof StravaApiError ? error.usage : null;
+          state.stravaFailureStage =
+            error instanceof StravaApiError ? (error.stage ?? "unknown") : "unknown";
         }
         try {
-          await store.recordResult(workoutDedupeKey, {
+          await store.recordResult(resultDedupeKey, {
             status: "failed",
             strava: null,
             error: stravaReason(error),
@@ -386,7 +401,7 @@ export function createApp(options: CreateAppOptions = {}): FastifyInstance {
         state.stravaLatencyS = secondsSince(stravaStartedAt);
       }
       try {
-        await store.recordResult(workoutDedupeKey, {
+        await store.recordResult(resultDedupeKey, {
           status: "posted",
           strava: {
             activity_id: result.id,

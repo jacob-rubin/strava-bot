@@ -213,6 +213,7 @@ describe("StravaClient failure mapping", () => {
 
     expect(error).toBeInstanceOf(StravaApiError);
     expect((error as StravaApiError).status).toBe(429);
+    expect((error as StravaApiError).stage).toBe("create_activity");
     expect((error as StravaApiError).usage?.rateLimitUsage).toBe("1,5");
     const activityCalls = fetchMock.mock.calls.filter(([url]) =>
       url.includes("/activities"),
@@ -243,7 +244,29 @@ describe("StravaClient failure mapping", () => {
 
     expect(error).toBeInstanceOf(StravaApiError);
     expect((error as StravaApiError).status).toBe(400);
+    expect((error as StravaApiError).stage).toBe("create_activity");
     expect((error as StravaApiError).fault).toBe("bad sport_type");
+  });
+
+  it("categorizes a rejected token refresh without exposing its fault as a category", async () => {
+    const settings = new FakeSettings();
+    const fetchMock = vi.fn<StravaFetch>(
+      async (): Promise<StravaResponseLike> =>
+        jsonResponse(400, { message: "refresh token rejected" }),
+    );
+    const client = new StravaClient({
+      settings,
+      fetch: fetchMock,
+      now: () => BASE_TIME,
+      log: () => undefined,
+    });
+
+    const error = await client
+      .createActivity(ACTIVITY_INPUT)
+      .catch((reason: unknown) => reason);
+
+    expect(error).toBeInstanceOf(StravaApiError);
+    expect((error as StravaApiError).stage).toBe("token_refresh");
   });
 });
 
