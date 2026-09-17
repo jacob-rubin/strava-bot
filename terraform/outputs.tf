@@ -32,3 +32,28 @@ output "monthly_budget" {
   description = "Monthly billing budget guarding the public, paid endpoint."
   value       = "${var.budget_amount} ${var.budget_currency} (${google_billing_budget.monthly.display_name})"
 }
+
+output "deploy_trigger" {
+  description = "Cloud Build trigger that builds with buildpacks and deploys Cloud Run."
+  value       = "${google_cloudbuild_trigger.deploy.name} (${google_cloudbuild_trigger.deploy.location})"
+}
+
+output "build_service_account" {
+  description = "Identity the deploy pipeline runs as."
+  value       = google_service_account.build.email
+}
+
+# Empty until the trigger has run; see var.cloud_run_deployed.
+output "service_url" {
+  description = "HTTPS URL of the Cloud Run service the pipeline deployed."
+  value       = try(data.google_cloud_run_service.strava_bot[0].status[0].url, "")
+}
+
+# The path_token form of the ingest endpoint, for T21's Shortcut. Sensitive
+# because the token is half of the endpoint's authentication (Constraint 3):
+# read it with `terraform output -raw ingest_url`, never paste it into the repo.
+output "ingest_url" {
+  description = "POST target for the Shortcut, including the path_token segment."
+  value       = "${try(data.google_cloud_run_service.strava_bot[0].status[0].url, "")}/ingest/${random_password.ingest_path_token.result}"
+  sensitive   = true
+}
