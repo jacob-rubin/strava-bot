@@ -21,7 +21,7 @@ Every rule here is called out as mandatory somewhere in [PLANNING.md](PLANNING.m
 
 6. **Always persist `raw_text`, even when parsing fails.** This is what makes re-parsing after a parser fix possible. A 400 response still leaves a Firestore doc with `raw_text` populated. → [Persistence §6](planning/04-persistence.md), [Error handling §11](planning/08-error-handling.md)
 
-7. **Never log `raw_text` or any secret.** → [Error handling §11](planning/08-error-handling.md)
+7. **Never log a secret. `raw_text` may be logged.** No credential — `INGEST_KEY`, `INGEST_PATH_TOKEN`, the Strava client secret or refresh token, or a supplied auth value — may ever reach a log, a response body, or an error message; rule 3 above governs the auth case and is unchanged. `raw_text` is a different matter and is permitted, gated behind `DEBUG_LOG_RAW_TEXT` (default `true`), because it is the owner's own Strong share text in a single-user service and seeing it is how the parser gets fixed ([ADR 0011](decisions/0011-allow-raw-text-debug-logging.md)). Be aware it then lives in Cloud Logging under that bucket's retention, not Firestore's. → [Error handling §11](planning/08-error-handling.md), [ADR 0011](decisions/0011-allow-raw-text-debug-logging.md)
 
 8. **A rotated Strava refresh token must be persisted immediately.** The token-refresh response's `refresh_token` may differ from the one sent; write it as a new Secret Manager version whenever it changes. Losing a rotated token locks out the integration and requires redoing the one-time authorization by hand. → [Strava integration §7.3](planning/05-strava-integration.md)
 
