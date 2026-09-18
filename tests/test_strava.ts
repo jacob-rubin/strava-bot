@@ -13,6 +13,7 @@ class FakeSettings implements StravaSettings {
   clientSecret = "client-secret";
   currentRefresh = "rt-old";
   addedVersions: string[] = [];
+  reloadCount = 0;
 
   async getStravaClientId(): Promise<string> {
     return this.clientId;
@@ -23,6 +24,16 @@ class FakeSettings implements StravaSettings {
   }
 
   async getStravaRefreshToken(): Promise<string> {
+    return this.currentRefresh;
+  }
+
+  /**
+   * Stands in for the Secret Manager cache bypass. Incrementing the counter is
+   * how a test observes that the client re-read the token instead of reusing
+   * the copy it already held.
+   */
+  async reloadStravaRefreshToken(): Promise<string> {
+    this.reloadCount += 1;
     return this.currentRefresh;
   }
 
@@ -188,6 +199,72 @@ describe("StravaClient failure mapping", () => {
       url.includes("/activities"),
     );
     expect(activityCalls).toHaveLength(2);
+  });
+
+  it("re-reads the refresh token on a 401 instead of reusing the cached one", async () => {
+    const settings = new FakeSettings();
+    const activityResponses: StravaResponseLike[] = [
+      jsonResponse(401, { message: "Authorization Error" }),
+      jsonResponse(201, { id: 654 }),
+    ];
+    const fetchMock = vi.fn<StravaFetch>(
+      async (url: string): Promise<StravaResponseLike> => {
+        if (url.includes("/oauth/token")) {
+          return oauthResponse("token-f", "rt-old", BASE_TIME / 1000 + 3600);
+        }
+        return activityResponses.shift() ?? jsonResponse(500, {});
+      },
+    );
+    const client = new StravaClient({
+      settings,
+      fetch: fetchMock,
+      now: () => BASE_TIME,
+      log: () => undefined,
+    });
+
+    await client.createActivity(ACTIVITY_INPUT);
+
+    // Without the bypass the retry would reuse the same cached token, so a
+    // stale value could only ever fail again.
+    expect(settings.reloadCount).toBe(1);
+  });
+
+  it("picks up a refresh token another instance rotated, without a restart", async () => {
+    const settings = new FakeSettings();
+    // Simulate a rotation persisted elsewhere: the source of truth has moved on
+    // while this client still holds "rt-old".
+    const sentRefreshTokens: string[] = [];
+    const activityResponses: StravaResponseLike[] = [
+      jsonResponse(201, { id: 111 }),
+      jsonResponse(401, { message: "Authorization Error" }),
+      jsonResponse(201, { id: 222 }),
+    ];
+    const fetchMock = vi.fn<StravaFetch>(
+      async (url: string, init): Promise<StravaResponseLike> => {
+        if (url.includes("/oauth/token")) {
+          const body = JSON.parse(init?.body ?? "{}") as {
+            refresh_token?: string;
+          };
+          sentRefreshTokens.push(body.refresh_token ?? "");
+          return oauthResponse("token-g", "rt-old", BASE_TIME / 1000 + 3600);
+        }
+        return activityResponses.shift() ?? jsonResponse(500, {});
+      },
+    );
+    const client = new StravaClient({
+      settings,
+      fetch: fetchMock,
+      now: () => BASE_TIME,
+      log: () => undefined,
+    });
+
+    await client.createActivity(ACTIVITY_INPUT);
+    settings.currentRefresh = "rt-rotated-elsewhere";
+
+    const result = await client.createActivity(ACTIVITY_INPUT);
+
+    expect(result.id).toBe("222");
+    expect(sentRefreshTokens.at(-1)).toBe("rt-rotated-elsewhere");
   });
 
   it("fails immediately on 429 without retrying and exposes usage", async () => {

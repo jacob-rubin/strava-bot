@@ -24,6 +24,12 @@ export interface StravaSettings {
   getStravaClientSecret(): Promise<string>;
   getStravaRefreshToken(): Promise<string>;
   addStravaRefreshTokenVersion(value: string): Promise<void>;
+  /**
+   * Re-read the refresh token from its source, bypassing any cache. Optional
+   * so a caller with no caching layer can omit it; when absent the client
+   * falls back to `getStravaRefreshToken`.
+   */
+  reloadStravaRefreshToken?(): Promise<string>;
 }
 
 export interface CreateActivityInput {
@@ -167,7 +173,9 @@ export class StravaClient {
     this.#log = options.log ?? ((line: string) => console.log(line));
   }
 
-  async getAccessToken(options: { force?: boolean } = {}): Promise<string> {
+  async getAccessToken(
+    options: { force?: boolean; reloadRefreshToken?: boolean } = {},
+  ): Promise<string> {
     if (!options.force && this.#token !== undefined) {
       const remaining = this.#token.expiresAt - this.#now();
       if (remaining > REFRESH_THRESHOLD_MS) {
@@ -175,16 +183,23 @@ export class StravaClient {
       }
     }
 
-    await this.refreshAccessToken();
+    await this.refreshAccessToken({
+      ...(options.reloadRefreshToken === true
+        ? { reloadRefreshToken: true }
+        : {}),
+    });
     if (this.#token === undefined) {
       throw new Error("Token refresh did not produce an access token.");
     }
     return this.#token.accessToken;
   }
 
-  async refreshAccessToken(): Promise<void> {
-    const refreshToken =
-      this.#refreshToken ?? (await this.#settings.getStravaRefreshToken());
+  async refreshAccessToken(
+    options: { reloadRefreshToken?: boolean } = {},
+  ): Promise<void> {
+    const refreshToken = await this.#loadRefreshToken(
+      options.reloadRefreshToken === true,
+    );
     const [clientId, clientSecret] = await Promise.all([
       this.#settings.getStravaClientId(),
       this.#settings.getStravaClientSecret(),
@@ -257,6 +272,26 @@ export class StravaClient {
     };
   }
 
+  /**
+   * Resolve the refresh token to send. When `reload` is set, the client's own
+   * copy is dropped and the value is re-read from its source rather than from
+   * any cache, so an instance whose token has been superseded — by a rotation
+   * another instance persisted, or by a fresh authorization — can recover in
+   * place instead of having to be replaced.
+   */
+  async #loadRefreshToken(reload: boolean): Promise<string> {
+    if (!reload) {
+      return this.#refreshToken ?? (await this.#settings.getStravaRefreshToken());
+    }
+    this.#refreshToken = undefined;
+    const reloaded = this.#settings.reloadStravaRefreshToken;
+    const value =
+      reloaded !== undefined
+        ? await reloaded.call(this.#settings)
+        : await this.#settings.getStravaRefreshToken();
+    return value;
+  }
+
   async createActivity(
     activity: CreateActivityInput,
   ): Promise<CreateActivityResult> {
@@ -290,7 +325,10 @@ export class StravaClient {
           " ratelimit=" + usage.rateLimitUsage +
           " read_ratelimit=" + usage.readRateLimitUsage,
       );
-      await this.getAccessToken({ force: true });
+      // Re-read the refresh token rather than reusing the cached one: if the
+      // cached value is the reason for the 401, retrying with it can only fail
+      // the same way.
+      await this.getAccessToken({ force: true, reloadRefreshToken: true });
       response = await send();
     }
 
