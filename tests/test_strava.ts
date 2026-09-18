@@ -87,6 +87,32 @@ const ACTIVITY_INPUT = {
 };
 
 describe("StravaClient token caching", () => {
+  it("authenticates activity requests and the 401 retry with the current bearer token", async () => {
+    let refreshCount = 0;
+    const fetchMock = vi.fn<StravaFetch>(async (url, init) => {
+      if (url.includes("/oauth/token")) {
+        expect(init?.headers?.authorization).toBeUndefined();
+        refreshCount += 1;
+        return oauthResponse(`token-${refreshCount}`, "rt-old", BASE_TIME / 1000 + 3600);
+      }
+      expect(init?.headers?.authorization).toBe(`Bearer token-${refreshCount}`);
+      return refreshCount === 1
+        ? jsonResponse(401, { message: "Authorization Error" })
+        : jsonResponse(201, { id: 123 });
+    });
+    const log = vi.fn();
+    const client = new StravaClient({
+      settings: new FakeSettings(),
+      fetch: fetchMock,
+      now: () => BASE_TIME,
+      log,
+    });
+    expect((await client.createActivity(ACTIVITY_INPUT)).id).toBe("123");
+    expect(refreshCount).toBe(2);
+    expect(JSON.stringify(log.mock.calls)).not.toContain("token-1");
+    expect(JSON.stringify(log.mock.calls)).not.toContain("token-2");
+  });
+
   it("reuses a cached access token until fewer than 300s remain", async () => {
     const settings = new FakeSettings();
     const fetchMock = vi.fn<StravaFetch>(

@@ -313,7 +313,7 @@ export class StravaClient {
       if (activity.commute !== undefined) {
         body.commute = activity.commute;
       }
-      return this.#post(STRAVA_ACTIVITIES_URL, body, "create-activity");
+      return this.#post(STRAVA_ACTIVITIES_URL, body, "create-activity", accessToken);
     };
 
     let response = await send();
@@ -394,10 +394,14 @@ export class StravaClient {
     url: string,
     body: Record<string, string | number>,
     kind: string,
+    accessToken?: string,
   ): Promise<StravaResponseLike> {
     const response = await this.#fetch(url, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        ...(accessToken === undefined ? {} : { authorization: `Bearer ${accessToken}` }),
+      },
       body: JSON.stringify(body),
     });
     const usage = usageFrom(response.headers);
