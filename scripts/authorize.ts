@@ -40,7 +40,9 @@ function parseScopes(value: unknown): string[] {
     return [];
   }
   return value
-    .split(",")
+    // Redirects have historically used commas, while Strava's current token
+    // response documents and returns a space-delimited scope list.
+    .split(/[\s,]+/)
     .map((entry) => entry.trim())
     .filter((entry) => entry.length > 0);
 }

@@ -54,6 +54,11 @@ describe("authorize scope guard", () => {
     expect(parseScopes(undefined)).toEqual([]);
   });
 
+  it("parses Strava's space-separated token-response scope list", () => {
+    expect(parseScopes("activity:write read")).toEqual(["activity:write", "read"]);
+    expect(parseScopes("activity:write\tread")).toEqual(["activity:write", "read"]);
+  });
+
   it("reads the granted scope out of a redirect URL", () => {
     const grant = extractGrant(`${REDIRECT}&scope=read,activity:write`);
     expect(grant.code).toBe("abc123");
