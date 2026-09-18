@@ -83,6 +83,13 @@ export interface RequestLog {
   elapsed_s: number | null;
   strava_latency_s: number | null;
   strava_failure_stage: StravaFailureStage | "unknown" | null;
+  /**
+   * HTTP status Strava returned on the failing call. The numeric status is the
+   * one piece of provider detail that is safe to record — it distinguishes an
+   * auth failure (401) from a validation failure (400) or a throttle (429)
+   * without carrying provider fault text.
+   */
+  strava_status: number | null;
   rate_limit_headers: StravaUsage | null;
   body_bytes: number | null;
   content_type: string | null;
@@ -105,6 +112,7 @@ interface RequestState {
   outcome: string;
   stravaLatencyS: number | null;
   stravaFailureStage: StravaFailureStage | "unknown" | null;
+  stravaStatus: number | null;
   rateLimitHeaders: StravaUsage | null;
   authFailed: boolean;
   bodyBytes: number | null;
@@ -158,6 +166,7 @@ export function createApp(options: CreateAppOptions = {}): FastifyInstance {
       outcome: "internal_error",
       stravaLatencyS: null,
       stravaFailureStage: null,
+      stravaStatus: null,
       rateLimitHeaders: null,
       authFailed: false,
       bodyBytes: null,
@@ -177,6 +186,7 @@ export function createApp(options: CreateAppOptions = {}): FastifyInstance {
         elapsed_s: state.elapsedS,
         strava_latency_s: state.stravaLatencyS,
         strava_failure_stage: state.stravaFailureStage,
+        strava_status: state.stravaStatus,
         rate_limit_headers: state.rateLimitHeaders,
         body_bytes: state.bodyBytes,
         content_type: state.contentType,
@@ -378,6 +388,7 @@ export function createApp(options: CreateAppOptions = {}): FastifyInstance {
           state.rateLimitHeaders = error instanceof StravaApiError ? error.usage : null;
           state.stravaFailureStage =
             error instanceof StravaApiError ? (error.stage ?? "unknown") : "unknown";
+          state.stravaStatus = error instanceof StravaApiError ? error.status : null;
         }
         try {
           await store.recordResult(resultDedupeKey, {
@@ -440,12 +451,21 @@ function defaultStravaClient(settings: Settings): StravaClient {
     getStravaClientId: async () => settings.stravaClientId,
     getStravaClientSecret: () => settings.getStravaClientSecret(),
     getStravaRefreshToken: () => settings.getStravaRefreshToken(),
+    reloadStravaRefreshToken: () => settings.reloadStravaRefreshToken(),
     addStravaRefreshTokenVersion: (value) =>
       settings.addStravaRefreshTokenVersion(value),
   };
-  // The route emits the one permitted request log line; suppress the client's
-  // transport-level logs so a request never produces duplicate log records.
-  return new StravaClient({ settings: stravaSettings, log: () => undefined });
+  // The route still emits exactly one structured RequestLog record per request.
+  // These transport lines are plain text, not RequestLog records, so that
+  // invariant holds. They are kept because the structured record alone cannot
+  // show a 401 that the client then recovered from by forcing a refresh — the
+  // call succeeds, nothing is thrown, and the token problem stays invisible.
+  // logUsageLine emits only kind, status, and rate-limit counters; no token,
+  // secret, or provider fault text passes through it (CONSTRAINTS rule 7).
+  return new StravaClient({
+    settings: stravaSettings,
+    log: (line) => console.log(line),
+  });
 }
 
 function unavailableActivityClient(): ActivityClient {
@@ -518,7 +538,9 @@ function limitResponse(value: string): string {
 }
 
 function secondsSince(startedAt: number): number {
-  return Math.round((Date.now() - startedAt) * 1000) / 1000;
+  // Date.now() is milliseconds; divide to get seconds, then round to the
+  // nearest millisecond for a readable log value.
+  return Math.round(Date.now() - startedAt) / 1000;
 }
 
 function stravaReason(error: unknown): string {
