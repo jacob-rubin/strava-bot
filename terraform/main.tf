@@ -405,6 +405,21 @@ resource "google_cloudbuild_trigger" "deploy" {
   }
 
   build {
+    # Unit tests gate the deploy: steps run in order and the build aborts on
+    # the first failure, so a red suite never reaches the buildpacks or deploy
+    # steps. `npm ci` installs devDependencies — that is where vitest lives.
+    step {
+      name       = "node:24-slim"
+      entrypoint = "npm"
+      args       = ["ci"]
+    }
+
+    step {
+      name       = "node:24-slim"
+      entrypoint = "npm"
+      args       = ["test"]
+    }
+
     # Google's native buildpacks — no Dockerfile (§10 Repository layout).
     step {
       name = "gcr.io/k8s-skaffold/pack"
