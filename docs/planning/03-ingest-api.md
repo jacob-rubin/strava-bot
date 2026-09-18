@@ -1,6 +1,6 @@
 ---
 status: authoritative
-last-updated: 2026-09-14
+last-updated: 2026-09-17
 ---
 
 ← [Index](../PLANNING.md)
@@ -60,6 +60,19 @@ resource "google_cloudbuild_trigger" "deploy" {
   # Wire source_to_build to the repo (push trigger) so buildpacks build the app source.
 
   build {
+    # Unit tests gate the deploy: steps run in order and the build aborts on
+    # the first failure, so a red suite never reaches the buildpacks or deploy
+    # steps. `npm ci` installs devDependencies — that is where vitest lives.
+    step {
+      name       = "node:24-slim"
+      entrypoint = "npm"
+      args       = ["ci"]
+    }
+    step {
+      name       = "node:24-slim"
+      entrypoint = "npm"
+      args       = ["test"]
+    }
     step {
       name = "gcr.io/k8s-skaffold/pack"
       args = [
@@ -100,7 +113,7 @@ output "service_url" {
 }
 ```
 
-The first step builds with **Google's native buildpacks** (`gcr.io/buildpacks/builder`) — no Dockerfile. `pack` leaves the image in the worker's Docker daemon, so the second step has to push it: a build-level `images` list would not be pushed until every step had finished, which is after the deploy step needs to pull it. The third step is the only place `gcloud` appears, and only inside Cloud Build; it deploys Cloud Run with the non-negotiable settings. Because Cloud Build owns the service, Terraform reads the deployed URL back through the `data` source rather than declaring the service.
+The first two steps are the test gate: `npm ci` and `npm test` on the checked-out source. Cloud Build runs steps in order and aborts on the first failure, so a failing unit-test suite blocks both the image build and the deploy. The third step builds with **Google's native buildpacks** (`gcr.io/buildpacks/builder`) — no Dockerfile. `pack` leaves the image in the worker's Docker daemon, so the fourth step has to push it: a build-level `images` list would not be pushed until every step had finished, which is after the deploy step needs to pull it. The fifth step is the only place `gcloud` appears, and only inside Cloud Build; it deploys Cloud Run with the non-negotiable settings. Because Cloud Build owns the service, Terraform reads the deployed URL back through the `data` source rather than declaring the service.
 
 `--allow-unauthenticated` disables Google's IAM check, not the application's. It is required: the Shortcut cannot mint an OIDC token.
 
