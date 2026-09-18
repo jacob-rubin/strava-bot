@@ -43,6 +43,7 @@ import {
   type CreateActivityResult,
   type StravaFailureStage,
   type StravaSettings,
+  type StructuredWorkoutInput,
   type StravaUsage,
 } from "./strava.js";
 
@@ -73,7 +74,10 @@ export interface WorkoutStoreLike {
 }
 
 export interface ActivityClient {
-  createActivity(activity: CreateActivityInput): Promise<CreateActivityResult>;
+  createActivity(
+    activity: CreateActivityInput,
+    structuredWorkout?: StructuredWorkoutInput,
+  ): Promise<CreateActivityResult>;
 }
 
 export interface RequestLog {
@@ -340,9 +344,16 @@ export function createApp(options: CreateAppOptions = {}): FastifyInstance {
         state.elapsedS = elapsedS;
       }
 
-      const startedAt = Timestamp.fromDate(
-        DateTime.fromISO(workout.started_at, { zone: settings.localTz }).toJSDate(),
-      );
+      const startedAtDateTime = DateTime.fromISO(workout.started_at, {
+        zone: settings.localTz,
+      });
+      const startedAtUtc = startedAtDateTime
+        .toUTC()
+        .toISO({ suppressMilliseconds: true });
+      if (startedAtUtc === null) {
+        return failInternal(reply, state);
+      }
+      const startedAt = Timestamp.fromDate(startedAtDateTime.toJSDate());
 
       if (existing === null) {
         try {
@@ -376,12 +387,20 @@ export function createApp(options: CreateAppOptions = {}): FastifyInstance {
       let result: CreateActivityResult;
       const stravaStartedAt = Date.now();
       try {
-        result = await strava.createActivity({
-          name: activityText.title,
-          description: activityText.description,
-          start_date_local: workout.started_at,
-          elapsed_time: elapsedS,
-        });
+        const structuredWorkout: StructuredWorkoutInput = {
+          start_time_utc: startedAtUtc,
+          utc_offset: startedAtDateTime.offset * 60,
+          exercises: summary.exercises,
+        };
+        result = await strava.createActivity(
+          {
+            name: activityText.title,
+            description: activityText.description,
+            start_date_local: workout.started_at,
+            elapsed_time: elapsedS,
+          },
+          structuredWorkout,
+        );
       } catch (error: unknown) {
         if (state !== undefined) {
           state.stravaLatencyS = secondsSince(stravaStartedAt);
@@ -416,9 +435,9 @@ export function createApp(options: CreateAppOptions = {}): FastifyInstance {
           status: "posted",
           strava: {
             activity_id: result.id,
-            upload_id: null,
+            upload_id: result.upload_id ?? null,
             url: result.url,
-            method: "activities",
+            method: result.method ?? "activities",
           },
           error: null,
         });
@@ -465,6 +484,7 @@ function defaultStravaClient(settings: Settings): StravaClient {
   return new StravaClient({
     settings: stravaSettings,
     log: (line) => console.log(line),
+    useStructuredUpload: settings.stravaUseStructuredUpload,
   });
 }
 
