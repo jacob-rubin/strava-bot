@@ -76,6 +76,19 @@ export class SecretManagerSecretAccessor {
     this.#cache.set(secretName, Promise.resolve(value));
   }
 
+  /**
+   * Drop the cached value so the next `get` re-reads `versions/latest`.
+   *
+   * The cache is per process and otherwise lives as long as the instance, so
+   * without this a container keeps using the secret version it first read.
+   * That matters for STRAVA_REFRESH_TOKEN: Strava may rotate it (§7.3), and a
+   * rotation persisted by one instance is invisible to every other instance.
+   * It also means a re-authorization would not be picked up without a redeploy.
+   */
+  invalidate(secretName: SecretName): void {
+    this.#cache.delete(secretName);
+  }
+
   async #read(secretName: SecretName): Promise<string> {
     try {
       const projectId = await this.#getProjectId();
@@ -161,6 +174,16 @@ export class Settings {
   }
 
   getStravaRefreshToken(): Promise<string> {
+    return this.#secrets.get("STRAVA_REFRESH_TOKEN");
+  }
+
+  /**
+   * Re-read STRAVA_REFRESH_TOKEN from Secret Manager, bypassing the cache.
+   * Used after Strava rejects an access token, so an instance holding a stale
+   * or superseded refresh token can recover without being replaced.
+   */
+  reloadStravaRefreshToken(): Promise<string> {
+    this.#secrets.invalidate("STRAVA_REFRESH_TOKEN");
     return this.#secrets.get("STRAVA_REFRESH_TOKEN");
   }
 
