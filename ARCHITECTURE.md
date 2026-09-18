@@ -106,7 +106,7 @@ flowchart TB
 | `google_secret_manager_secret_iam_member.accessor` | IAM | Service reads all four at startup |
 | `google_secret_manager_secret_iam_member.version_adder` | IAM | Refresh-token rotation write-back ([Constraint 8](docs/CONSTRAINTS.md)) |
 | `google_billing_budget.monthly` | Billing budget | Mandatory pair to `--max-instances=3` ([Constraint 13](docs/CONSTRAINTS.md)) |
-| `google_cloudbuild_trigger.deploy` | Cloud Build trigger | Builds with buildpacks, deploys Cloud Run ([T19](docs/tasks/T19-cloud-run-deploy.md)) |
+| `google_cloudbuild_trigger.deploy` | Cloud Build trigger | Unit tests (vitest) gate the buildpacks build and Cloud Run deploy ([T19](docs/tasks/T19-cloud-run-deploy.md)) |
 | *(none — `data` source only)* | Cloud Run service | Owned by the pipeline; Terraform reads the URL back |
 | *(none — bootstrap)* | GCS state bucket | Must exist before the state that would record it |
 
@@ -170,11 +170,12 @@ flowchart LR
     dev["git push<br/>to the wired branch"] --> trig["google_cloudbuild_trigger.deploy"]
 
     subgraph cb["Cloud Build"]
-        step1["step 1 — gcr.io/k8s-skaffold/pack<br/>pack build with gcr.io/buildpacks/builder<br/>no Dockerfile"]
-        step2["step 2 — cloud-sdk:slim<br/>gcloud run deploy strava-bot"]
+        step0["steps 1–2 — node:24-slim<br/>npm ci · npm test (vitest)<br/>build aborts here on failure"]
+        step1["step 3 — gcr.io/k8s-skaffold/pack<br/>pack build with gcr.io/buildpacks/builder<br/>no Dockerfile"]
+        step2["step 5 — cloud-sdk:slim<br/>gcloud run deploy strava-bot"]
     end
 
-    trig --> step1 --> ar["Artifact Registry<br/>us-central1-docker.pkg.dev/<br/>strava-bot-508419/strava-bot"]
+    trig --> step0 --> step1 --> ar["Artifact Registry<br/>us-central1-docker.pkg.dev/<br/>strava-bot-508419/strava-bot"]
     ar --> step2 --> rev["Cloud Run revision<br/>--allow-unauthenticated --max-instances 3<br/>--concurrency 4 --memory 512Mi --timeout 120<br/>--set-secrets INGEST_KEY, INGEST_PATH_TOKEN,<br/>STRAVA_CLIENT_SECRET, STRAVA_REFRESH_TOKEN"]
 
     rev -.->|"status[0].url"| ds["data.google_cloud_run_service.strava_bot"]
@@ -184,13 +185,14 @@ flowchart LR
     tf --> other["project · APIs · Firestore · secrets<br/>IAM · runtime SA · budget"]
 
     classDef planned stroke-dasharray:5 5,stroke-width:2px;
-    class trig,step1,step2,ar,rev,ds,out planned;
+    class trig,step0,step1,step2,ar,rev,ds,out planned;
 ```
 
 Two rules make this split work:
 
 1. **Terraform owns everything except the service.** Because Cloud Build creates and updates the Cloud Run service, Terraform reads its URL back through a `data` source instead of fighting the pipeline over ownership.
 2. **The non-negotiable flags live in the deploy step.** `--max-instances=3` is a cost control on a public endpoint, not a performance knob ([Constraint 13](docs/CONSTRAINTS.md)).
+3. **Tests gate the deploy.** The first two steps run `npm ci` and `npm test` on the pushed commit, and Cloud Build aborts on the first failed step — a red suite never reaches the image build, let alone Cloud Run.
 
 ---
 
