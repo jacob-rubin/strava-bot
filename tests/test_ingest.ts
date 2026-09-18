@@ -453,6 +453,45 @@ describe("request logging", () => {
     expect(JSON.stringify(record)).not.toContain("provider fault text");
   });
 
+  it("records the Strava HTTP status so a 401 is diagnosable from logs", async () => {
+    const records: RequestLog[] = [];
+    const strava = new FakeStrava();
+    strava.nextError = new StravaApiError(
+      401,
+      "Authorization Error",
+      null,
+      "Authorization Error",
+      "create_activity",
+    );
+    const { app } = harness({ strava, log: (r) => records.push(r) });
+
+    const response = await post(app, { payload: VALID_SHARE_TEXT });
+
+    expect(response.statusCode).toBe(502);
+    const record = records[0];
+    if (record === undefined) {
+      throw new Error("expected one request log record");
+    }
+    expect(record.strava_status).toBe(401);
+    expect(record.strava_failure_stage).toBe("create_activity");
+  });
+
+  it("reports Strava latency in seconds, not milliseconds", async () => {
+    const records: RequestLog[] = [];
+    const { app } = harness({ log: (r) => records.push(r) });
+
+    await post(app, { payload: VALID_SHARE_TEXT });
+
+    const record = records[0];
+    if (record === undefined) {
+      throw new Error("expected one request log record");
+    }
+    // A local fake resolves in well under a second; the old code multiplied
+    // milliseconds by 1000 and reported values in the hundreds.
+    expect(record.strava_latency_s).not.toBeNull();
+    expect(record.strava_latency_s ?? 0).toBeLessThan(5);
+  });
+
   it("never logs a secret, even with DEBUG_LOG_RAW_TEXT on (constraint 7)", async () => {
     const records: RequestLog[] = [];
     const { app } = harness({ log: (r) => records.push(r) });
