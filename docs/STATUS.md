@@ -13,9 +13,9 @@ last-updated: 2026-09-17
 
 This is a **rendered view**. Status lives one file per task in [status/tasks/](status/README.md) so that tasks running in parallel never edit the same file. Regenerate with `npm run status:write`.
 
-**Next up:** [T25 — Probe `POST /uploads` for JSON sets](tasks/T25-probe-upload-json.md) — the earliest task that is not finished and whose dependencies are all `done` on `main`.
+**Next up:** [T26 — Structured upload behind the flag](tasks/T26-structured-upload.md) — the earliest task that is not finished and whose dependencies are all `done` on `main`.
 
-**Ready now:** [T25](tasks/T25-probe-upload-json.md) (agent) · [T27](tasks/T27-reparse-script.md) (agent)
+**Ready now:** [T26](tasks/T26-structured-upload.md) (agent) · [T27](tasks/T27-reparse-script.md) (agent)
 
 A task already claimed by an in-flight branch still shows as `not started` here until its PR merges. Run `npm run status:next` for the live picture, which folds in `codex/<id>-*` branches.
 
@@ -48,7 +48,7 @@ Status values: `not started` · `in progress` · `done` · `blocked` · `skipped
 | T21 | [Wire the Shortcut and confirm the round trip](tasks/T21-shortcut-wiring-e2e.md) | 4 client | human | done |  |
 | T23 | [Add the `history` collection](tasks/T23-history-writes.md) | 5 history and PRs | agent | done | Epley used for best_e1rm (glossary leaves the formula to the implementer); history write folded into recordResult on status=posted. |
 | T24 | [Build `HistoryContext` and PR flags](tasks/T24-pr-flags-history-context.md) | 5 history and PRs | agent | done | volume_trend is oldest-vs-newest across recent, and pr_flags cover weight (e1rm) only |
-| T25 | [Probe `POST /uploads` for JSON sets](tasks/T25-probe-upload-json.md) | 6 optional | agent | not started | resolves open item 3 |
+| T25 | [Probe `POST /uploads` for JSON sets](tasks/T25-probe-upload-json.md) | 6 optional | agent | done | resolves open item 3 Deviation: probed with the JSON schema from Strava's live uploads doc (version/start_time/utc_offset/elapsed_time + sets[] with exercise_type); §7.4's set field list matches FIT set messages, not the JSON format. |
 | T26 | [Structured upload behind the flag](tasks/T26-structured-upload.md) | 6 optional | agent | not started | only if T25 succeeds |
 | T27 | [Write `scripts/reparse.ts`](tasks/T27-reparse-script.md) | 6 optional tooling | agent | not started |  |
 
@@ -60,7 +60,7 @@ Dependencies live in [tasks/README.md](tasks/README.md) and in each task's heade
 | - | ---- | ------ | ----------- |
 | 1 | Does the share sheet deliver full text or only the URL? | resolved — share sheet delivers full text; T21 uses the share-sheet path — Resolved 2026-09-16 (T20): sharing a finished Strong workout into a one-action `Quick Look` shortcut delivered the **full workout text block**, not just the `link.strong.app` URL. The share-sheet client in section 14 is therefore viable as specified, and T21 does not need the `Get Clipboard` / Back Tap fallback. | [T20](tasks/T20-share-sheet-probe.md) |
 | 2 | Is the `link.strong.app` slug stable across shares? | unresolved — non-blocking, content-hash guard covers it either way; T20 answers it incidentally | [T20](tasks/T20-share-sheet-probe.md) |
-| 3 | Does `POST /uploads` accept JSON, and is the field `data_type` or `dataType`? | unresolved — blocks T26 only | [T25](tasks/T25-probe-upload-json.md) |
+| 3 | Does `POST /uploads` accept JSON, and is the field `data_type` or `dataType`? | resolved — blocks T26 only — Resolved 2026-09-17 by scripts/probe_upload_json.ts against the live API: POST /uploads accepts JSON with data_type=json (intake 201, processing produced an activity); dataType=json is rejected at intake with HTTP 400 naming the data-type field. The accepted field name is data_type. The JSON file schema that processed successfully follows the 'JSON - Strength Training (Limited)' section of Strava's uploads doc: envelope version ("1.0"), start_time, utc_offset, elapsed_time, plus a non-empty sets[] array whose set objects use exercise_type — not the set_type/category field names §7.4 lists from the FIT set message. Caveat for T26: the probe-created activity returned 404 on API GET and DELETE with the read,activity:write token despite the upload reporting success — an activity invisible to the app's scope (e.g. private default visibility) cannot be deleted via the API and needs manual removal on strava.com. | [T25](tasks/T25-probe-upload-json.md) |
 | 4 | Does `POST /activities` require `type` alongside `sport_type`? | resolved — send both; confirmed against the live API — No. Sending `type` and `sport_type` together is accepted: two consecutive creates returned `201` on 2026-09-15 (T07), neither with a `400` naming either field. Keep sending both, as §7.4 specifies. | [T07](tasks/T07-manual-create-activity.md) |
 | 5 | Set-format coverage beyond the six known variants | ongoing — non-blocking, `unparsed` retains anything new; T27 answers it continuously | [T27](tasks/T27-reparse-script.md) |
 | 6 | With an empty `201` body, how does `app/` get the activity `id`? | unresolved — found by T07 — an empty `201` body blocks the §5 response URL and §6 `strava.url` | [T15](tasks/T15-strava-client.md) |
