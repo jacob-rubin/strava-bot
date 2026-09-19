@@ -9,6 +9,6 @@ Load the code-cleanup skill and apply its rules to exactly the files named by th
 Touch no other files except required repository-layout documentation for an approved new module or test.
 Make no behavioral changes: change formatting, naming, structure, and idioms only.
 Run targeted project formatter and linter commands first, then apply only the rules they cannot enforce.
-Use the skill's branch-in-current-checkout workflow, validate the result, and open the cleanup PR autonomously.
+Follow the skill's in-place workflow: edit the named files in the current checkout, validate the result, and leave the changes uncommitted for review. Never create a branch or worktree, and never stage, commit, push, or open a PR.
 Report each change as: file, rule ID, one-line rationale. Flag anything ambiguous instead of guessing.
 """
