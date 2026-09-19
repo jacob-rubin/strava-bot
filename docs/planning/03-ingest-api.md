@@ -1,6 +1,6 @@
 ---
 status: authoritative
-last-updated: 2026-09-17
+last-updated: 2026-09-19
 ---
 
 ← [Index](../PLANNING.md)
@@ -42,7 +42,7 @@ Rationale: Shortcuts has no crypto primitives, so OIDC and HMAC request signing 
 | 413    | `payload too large`                                                            |
 | 404    | _(empty)_                                                                      |
 | 502    | `strava rejected: <reason>`                                                    |
-| 500    | `internal error: <request_id>`                                                 |
+| 500    | `internal error`                                                               |
 
 ### `GET /health`
 

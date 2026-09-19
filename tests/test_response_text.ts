@@ -33,9 +33,9 @@ describe("ingest response text", () => {
     expect(stravaReason({})).toBe("Strava request failed");
   });
 
-  it("includes the request id in an internal error", () => {
-    expect(new InternalError("request-123")).toMatchObject({
-      message: "internal error: request-123",
+  it("says nothing beyond the failure in an internal error", () => {
+    expect(new InternalError()).toMatchObject({
+      message: "internal error",
       statusCode: 500,
     });
   });

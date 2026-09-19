@@ -34,8 +34,8 @@ export class StravaRejectedError extends IngestError {
 export class InternalError extends IngestError {
   readonly statusCode = 500;
 
-  constructor(requestId: string) {
-    super(`internal error: ${requestId}`);
+  constructor() {
+    super("internal error");
   }
 }
 

@@ -7,9 +7,10 @@
  * request path runs with only those two external services.
  */
 import { readFileSync } from "node:fs";
+import { Readable } from "node:stream";
 
 import type { FastifyInstance } from "fastify";
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { RequestLog } from "../app/logging.js";
 import { createApp, type CreateAppOptions } from "../app/main.js";
@@ -27,6 +28,7 @@ import {
   type CreateActivityInput,
   type CreateActivityResult,
 } from "../app/strava.js";
+import { rawTextHash } from "../app/util/ingest.js";
 
 const VALID_SHARE_TEXT =
   "Deadlift day\n" +
@@ -43,6 +45,19 @@ function shareTextWithSlug(slug: string): string {
     `https://link.strong.app/${slug}`,
   );
 }
+
+// The route reads the wall clock directly, so the suite freezes it instead of
+// injecting one: `received_at` and `elapsed_s` stay deterministic as the
+// fixture date recedes into the past. Only `Date` is faked, so Fastify's
+// `inject` and any real timers keep working.
+beforeAll(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-09-09T12:43:00Z"));
+});
+
+afterAll(() => {
+  vi.useRealTimers();
+});
 
 class FakeSettings implements IngestSettings {
   readonly localTz = "America/Chicago";
@@ -161,7 +176,6 @@ function harness(overrides: {
     settings,
     store,
     strava,
-    now: () => new Date("2026-09-09T07:43:00Z"),
     log: overrides.log ?? (() => undefined),
   } satisfies CreateAppOptions;
   const app = createApp(appOptions);
@@ -296,7 +310,9 @@ describe("ingest processing order", () => {
     expect(call?.description).toContain("315 lb x 4");
     expect(call?.description).toContain("3780 total volume");
     expect(call?.start_date_local).toBe("2026-09-09T06:43:00");
-    expect(call?.elapsed_time).toBeGreaterThan(0);
+    // Frozen clock is one hour after the fixture's local start time, so this
+    // pins the received-minus-started branch of `elapsedSeconds`.
+    expect(call?.elapsed_time).toBe(3_600);
   });
 
   it("maps a Strava 429 to 502 with status failed and no partial state", async () => {
@@ -378,25 +394,36 @@ describe("MVP scope", () => {
   });
 });
 
+function onlyRecord(records: RequestLog[]): RequestLog {
+  expect(records).toHaveLength(1);
+  const record = records[0];
+  if (record === undefined) {
+    throw new Error("expected one request log record");
+  }
+  return record;
+}
+
+class FailingLookupStore extends FakeStore {
+  override async findExisting(): Promise<StoredWorkout | null> {
+    throw new Error("firestore unavailable");
+  }
+}
+
 describe("request logging", () => {
-  it("logs raw_text, body_bytes, and content_type when DEBUG_LOG_RAW_TEXT is on", async () => {
+  it("logs the payload and the response status for a posted workout", async () => {
     const records: RequestLog[] = [];
     const { app } = harness({ log: (r) => records.push(r) });
 
     const response = await post(app, { payload: VALID_SHARE_TEXT });
 
     expect(response.statusCode).toBe(200);
-    expect(records).toHaveLength(1);
-    const record = records[0];
-    if (record === undefined) {
-      throw new Error("expected one request log record");
-    }
-    expect(record.raw_text).toBe(VALID_SHARE_TEXT);
-    expect(record.body_bytes).toBe(Buffer.byteLength(VALID_SHARE_TEXT, "utf8"));
-    expect(record.content_type).toBe("text/plain; charset=utf-8");
+    expect(onlyRecord(records)).toEqual({
+      status: 200,
+      raw_text: VALID_SHARE_TEXT,
+    });
   });
 
-  it("omits raw_text when DEBUG_LOG_RAW_TEXT is off but keeps the metadata", async () => {
+  it("omits the payload when DEBUG_LOG_RAW_TEXT is off", async () => {
     const records: RequestLog[] = [];
     const settings = new FakeSettings("correct-key", "correct-token", false);
     const { app } = harness({ settings, log: (r) => records.push(r) });
@@ -404,16 +431,41 @@ describe("request logging", () => {
     const response = await post(app, { payload: VALID_SHARE_TEXT });
 
     expect(response.statusCode).toBe(200);
-    expect(records).toHaveLength(1);
-    const record = records[0];
-    if (record === undefined) {
-      throw new Error("expected one request log record");
-    }
-    expect(record.raw_text).toBeUndefined();
-    expect(record.body_bytes).toBeGreaterThan(0);
+    expect(onlyRecord(records)).toEqual({ status: 200 });
   });
 
-  it("logs raw_text for an unparseable body, which is the point of the flag", async () => {
+  it("logs the shared text rather than the JSON envelope that carried it", async () => {
+    const records: RequestLog[] = [];
+    const { app } = harness({ log: (r) => records.push(r) });
+
+    const response = await post(app, {
+      headers: { "content-type": "application/json" },
+      payload: JSON.stringify({ text: VALID_SHARE_TEXT }),
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(onlyRecord(records)).toEqual({
+      status: 200,
+      raw_text: VALID_SHARE_TEXT,
+    });
+  });
+
+  it("logs one line per share, so a repeated share is visible as a second 200", async () => {
+    const records: RequestLog[] = [];
+    const { app } = harness({ log: (r) => records.push(r) });
+
+    await post(app, { payload: VALID_SHARE_TEXT });
+    const second = await post(app, { payload: VALID_SHARE_TEXT });
+
+    expect(second.statusCode).toBe(200);
+    expect(second.body).toMatch(/^already posted: /);
+    expect(records).toEqual([
+      { status: 200, raw_text: VALID_SHARE_TEXT },
+      { status: 200, raw_text: VALID_SHARE_TEXT },
+    ]);
+  });
+
+  it("logs the payload of an unparseable body, which is the point of the flag", async () => {
     const records: RequestLog[] = [];
     const { app } = harness({ log: (r) => records.push(r) });
     const raw = "some unrecognised set format 3x5 @ 225";
@@ -421,74 +473,95 @@ describe("request logging", () => {
     const response = await post(app, { payload: raw });
 
     expect(response.statusCode).toBe(400);
-    const record = records[0];
-    if (record === undefined) {
-      throw new Error("expected one request log record");
-    }
-    expect(record.raw_text).toBe(raw);
+    expect(onlyRecord(records)).toEqual({ status: 400, raw_text: raw });
   });
 
-  it("logs a safe Strava failure stage without the provider fault text", async () => {
+  it("logs a 413 for a body over the cap", async () => {
     const records: RequestLog[] = [];
-    const strava = new FakeStrava();
-    strava.nextError = new StravaApiError(
-      400,
-      "provider fault text that must stay out of structured categories",
-      null,
-      "provider fault text that must stay out of structured categories",
-      "create_activity",
-    );
-    const { app } = harness({ strava, log: (r) => records.push(r) });
+    const { app } = harness({ log: (r) => records.push(r) });
 
-    const response = await post(app, { payload: VALID_SHARE_TEXT });
+    const response = await post(app, { payload: "x".repeat(65_537) });
 
-    expect(response.statusCode).toBe(502);
-    const record = records[0];
-    if (record === undefined) {
-      throw new Error("expected one request log record");
-    }
-    expect(record.outcome).toBe("strava_rejected");
-    expect(record.strava_failure_stage).toBe("create_activity");
-    expect(JSON.stringify(record)).not.toContain("provider fault text");
+    expect(response.statusCode).toBe(413);
+    expect(onlyRecord(records)).toEqual({ status: 413 });
   });
 
-  it("records the Strava HTTP status so a 401 is diagnosable from logs", async () => {
+  it("logs a 413 when the cap is hit while reading the body", async () => {
+    // A streamed body carries no content-length, so the precheck cannot fire and
+    // Fastify's own limit raises FST_ERR_CTP_BODY_TOO_LARGE instead.
+    const records: RequestLog[] = [];
+    const { app } = harness({ log: (r) => records.push(r) });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/ingest/correct-token",
+      headers: {
+        "content-type": "text/plain; charset=utf-8",
+        "x-ingest-key": "correct-key",
+      },
+      payload: Readable.from([Buffer.from("x".repeat(65_537))]),
+    });
+
+    expect(response.statusCode).toBe(413);
+    expect(response.body).toBe("payload too large");
+    expect(onlyRecord(records)).toEqual({ status: 413 });
+  });
+
+  it("logs a 502 and the payload when Strava rejects the post", async () => {
     const records: RequestLog[] = [];
     const strava = new FakeStrava();
     strava.nextError = new StravaApiError(
       401,
-      "Authorization Error",
+      "provider fault text that belongs in Firestore, not in the log record",
       null,
-      "Authorization Error",
+      "provider fault text that belongs in Firestore, not in the log record",
       "create_activity",
     );
-    const { app } = harness({ strava, log: (r) => records.push(r) });
+    const { app, store } = harness({ strava, log: (r) => records.push(r) });
 
     const response = await post(app, { payload: VALID_SHARE_TEXT });
 
     expect(response.statusCode).toBe(502);
-    const record = records[0];
-    if (record === undefined) {
-      throw new Error("expected one request log record");
-    }
-    expect(record.strava_status).toBe(401);
-    expect(record.strava_failure_stage).toBe("create_activity");
+    const record = onlyRecord(records);
+    expect(record).toEqual({ status: 502, raw_text: VALID_SHARE_TEXT });
+    expect(JSON.stringify(record)).not.toContain("provider fault text");
+    // The fault text is still recoverable, on the durable copy §6 keeps.
+    expect(store.results[0]?.result.error).toContain("provider fault text");
   });
 
-  it("reports Strava latency in seconds, not milliseconds", async () => {
+  it("logs a 500 when Firestore is unavailable, and says nothing more in the body", async () => {
+    const records: RequestLog[] = [];
+    const { app, strava } = harness({
+      store: new FailingLookupStore(),
+      log: (r) => records.push(r),
+    });
+
+    const response = await post(app, { payload: VALID_SHARE_TEXT });
+
+    expect(response.statusCode).toBe(500);
+    expect(response.body).toBe("internal error");
+    expect(onlyRecord(records)).toEqual({ status: 500, raw_text: VALID_SHARE_TEXT });
+    expect(strava.calls).toHaveLength(0);
+  });
+
+  it("logs a bare status counter for an auth failure (constraint 3)", async () => {
     const records: RequestLog[] = [];
     const { app } = harness({ log: (r) => records.push(r) });
 
-    await post(app, { payload: VALID_SHARE_TEXT });
+    const response = await post(app, { key: "wrong-key", payload: VALID_SHARE_TEXT });
 
-    const record = records[0];
-    if (record === undefined) {
-      throw new Error("expected one request log record");
-    }
-    // A local fake resolves in well under a second; the old code multiplied
-    // milliseconds by 1000 and reported values in the hundreds.
-    expect(record.strava_latency_s).not.toBeNull();
-    expect(record.strava_latency_s ?? 0).toBeLessThan(5);
+    expect(response.statusCode).toBe(404);
+    expect(JSON.stringify(onlyRecord(records))).toBe('{"status":404}');
+  });
+
+  it("logs nothing for a health check", async () => {
+    const records: RequestLog[] = [];
+    const { app } = harness({ log: (r) => records.push(r) });
+
+    const response = await app.inject({ method: "GET", url: "/health" });
+
+    expect(response.statusCode).toBe(200);
+    expect(records).toHaveLength(0);
   });
 
   it("never logs a secret, even with DEBUG_LOG_RAW_TEXT on (constraint 7)", async () => {
@@ -503,15 +576,5 @@ describe("request logging", () => {
     expect(serialised).not.toContain("correct-key");
     expect(serialised).not.toContain("correct-token");
     expect(serialised).not.toContain("leak-me-key");
-  });
-
-  it("logs only a bare counter for an auth failure (constraint 3)", async () => {
-    const records: RequestLog[] = [];
-    const { app } = harness({ log: (r) => records.push(r) });
-
-    const response = await post(app, { key: "wrong-key", payload: VALID_SHARE_TEXT });
-
-    expect(response.statusCode).toBe(404);
-    expect(records).toHaveLength(0);
   });
 });
