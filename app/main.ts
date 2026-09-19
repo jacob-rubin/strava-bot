@@ -16,18 +16,16 @@ import {
   IngestError,
   InternalError,
   PayloadTooLargeError,
-  StravaRejectedError,
-  UnparseableWorkoutError,
-  stravaReason,
 } from "./ingest/error.js";
+import { parseWorkoutOrRecordRaw } from "./ingest/parse_stage.js";
+import { postWorkoutActivity } from "./ingest/post_stage.js";
+import { requiredStore } from "./ingest/required_store.js";
 import { requestText } from "./ingest/request_text.js";
+import { deriveWorkoutTiming } from "./ingest/workout_timing.js";
 import { logRequest, type RequestLog } from "./logging.js";
 import {
   contentHash,
   dedupeKey,
-  elapsedSeconds,
-  ParseError,
-  parseWorkout,
   summarizeWorkout,
 } from "./parser.js";
 import {
@@ -36,10 +34,7 @@ import {
 } from "./ports/activity_client.js";
 import type { IngestSettings } from "./ports/ingest_settings.js";
 import { defaultStore, type WorkoutStoreLike } from "./ports/workout_store_like.js";
-import type { StructuredWorkoutInput } from "./strava.js";
-import { attempt, attemptSync } from "./util/attempt.js";
 import { contentLengthHeader, headerValue } from "./util/http_headers.js";
-import { rawTextHash } from "./util/ingest.js";
 import { safeSecretEqual } from "./util/secret_comparison.js";
 
 type IngestParams = { path_token: string };
@@ -58,6 +53,7 @@ export function createApp({
   log,
 }: CreateAppOptions): FastifyInstance {
   const app = Fastify({ bodyLimit: settings.maxBodyBytes });
+  const workouts = requiredStore(store);
 
   // Bodies stay raw: constraint 6 persists exactly the text that was sent.
   app.addContentTypeParser(
@@ -86,12 +82,8 @@ export function createApp({
     onResponse: (request, reply, done) => {
       const record: RequestLog = { status: reply.statusCode };
       // Constraint 3 / §11: a bad auth gets the bare status counter and no request
-      // data. Constraint 7 / ADR 0011: the payload is loggable behind this flag.
-      if (
-        reply.statusCode !== 404 &&
-        settings.debugLogRawText &&
-        typeof request.body === "string"
-      ) {
+      // data. Constraint 7 / ADR 0011: every other request logs its payload.
+      if (reply.statusCode !== 404 && typeof request.body === "string") {
         record.raw_text = requestText(
           request.body,
           headerValue(request.headers["content-type"]),
@@ -114,7 +106,9 @@ export function createApp({
         return reply.code(404).send();
       }
 
-      const contentLength = contentLengthHeader(request.headers["content-length"]);
+      const contentLength = contentLengthHeader(
+        request.headers["content-length"],
+      );
       if (contentLength !== null && contentLength > settings.maxBodyBytes) {
         throw new PayloadTooLargeError();
       }
@@ -124,41 +118,18 @@ export function createApp({
       const rawText = requestText(request.body, contentType);
       const receivedAt = DateTime.now().setZone(settings.localTz);
 
-      const parseResult = attemptSync(() => parseWorkout(rawText));
-      if (!parseResult.ok) {
-        if (!(parseResult.error instanceof ParseError)) {
-          throw new InternalError();
-        }
-
-        const parseFailureKey = rawTextHash(rawText);
-        const recorded = await attempt(() =>
-          store.recordReceived({
-            dedupe_key: parseFailureKey,
-            content_hash: parseFailureKey,
-            raw_text: rawText,
-            parsed: null,
-            started_at: null,
-            elapsed_s: null,
-            received_at: Timestamp.fromDate(receivedAt.toJSDate()),
-          }),
-        );
-        if (!recorded.ok) {
-          throw new InternalError();
-        }
-        throw new UnparseableWorkoutError();
-      }
-
-      const workout = parseResult.value;
+      const workout = await parseWorkoutOrRecordRaw({
+        store: workouts,
+        rawText,
+        receivedAt,
+      });
       const workoutDedupeKey = dedupeKey(workout);
       const workoutContentHash = contentHash(workout);
 
-      const lookup = await attempt(() =>
-        store.findExisting(workoutDedupeKey, workoutContentHash),
+      const existing = await workouts.findExisting(
+        workoutDedupeKey,
+        workoutContentHash,
       );
-      if (!lookup.ok) {
-        throw new InternalError();
-      }
-      const existing = lookup.value;
 
       if (existing !== null && existing.status !== "failed") {
         return reply
@@ -173,99 +144,48 @@ export function createApp({
         existing?.status === "failed" ? existing.dedupe_key : workoutDedupeKey;
 
       const summary = summarizeWorkout(workout);
-      const elapsedS = elapsedSeconds(
-        workout.started_at,
+      const timing = deriveWorkoutTiming({
+        workout,
+        summary,
         receivedAt,
-        summary.total_sets,
-        settings.elapsedCapS,
-      );
-
-      const startedAtDateTime = DateTime.fromISO(workout.started_at, {
-        zone: settings.localTz,
+        settings,
       });
-      const startedAtUtc = startedAtDateTime
-        .toUTC()
-        .toISO({ suppressMilliseconds: true });
-      if (startedAtUtc === null) {
-        throw new InternalError();
-      }
-      const startedAt = Timestamp.fromDate(startedAtDateTime.toJSDate());
 
       if (existing === null) {
-        const recorded = await attempt(() =>
-          store.recordReceived({
-            dedupe_key: workoutDedupeKey,
-            content_hash: workoutContentHash,
-            raw_text: rawText,
-            parsed: workout,
-            started_at: startedAt,
-            elapsed_s: elapsedS,
-            received_at: Timestamp.fromDate(receivedAt.toJSDate()),
-          }),
-        );
-        if (!recorded.ok) {
-          throw new InternalError();
-        }
+        await workouts.recordReceived({
+          dedupe_key: workoutDedupeKey,
+          content_hash: workoutContentHash,
+          raw_text: rawText,
+          parsed: workout,
+          started_at: timing.startedAt,
+          elapsed_s: timing.elapsedS,
+          received_at: Timestamp.fromDate(receivedAt.toJSDate()),
+        });
       }
 
       // §6: history is read before the post so this workout never compares against itself.
-      const history = await attempt(() => store.getHistoryContext(summary, startedAt));
-      if (!history.ok) {
-        throw new InternalError();
-      }
+      const history = await workouts.getHistoryContext(
+        summary,
+        timing.startedAt,
+      );
 
       // §8 / constraint 9: formatting is local and deterministic, never a network call.
-      const activityText = formatActivityText(summary, history.value);
+      const activityText = formatActivityText(summary, history);
 
-      const created = await attempt(() => {
-        const structuredWorkout: StructuredWorkoutInput = {
-          start_time_utc: startedAtUtc,
-          utc_offset: startedAtDateTime.offset * 60,
-          exercises: summary.exercises,
-        };
-        return strava.createActivity(
-          {
-            name: activityText.title,
-            description: activityText.description,
-            start_date_local: workout.started_at,
-            elapsed_time: elapsedS,
-          },
-          structuredWorkout,
-        );
+      const result = await postWorkoutActivity({
+        strava,
+        store: workouts,
+        resultDedupeKey,
+        activityText,
+        startDateLocal: workout.started_at,
+        summary,
+        timing,
       });
 
-      if (!created.ok) {
-        const recordedFailure = await attempt(() =>
-          store.recordResult(resultDedupeKey, {
-            status: "failed",
-            strava: null,
-            error: stravaReason(created.error),
-          }),
-        );
-        if (!recordedFailure.ok) {
-          throw new InternalError();
-        }
-        throw new StravaRejectedError(created.error);
-      }
-
-      const result = created.value;
-      const recordedResult = await attempt(() =>
-        store.recordResult(resultDedupeKey, {
-          status: "posted",
-          strava: {
-            activity_id: result.id,
-            upload_id: result.upload_id ?? null,
-            url: result.url,
-            method: result.method ?? "activities",
-          },
-          error: null,
-        }),
-      );
-      if (!recordedResult.ok) {
-        throw new InternalError();
-      }
-
-      return reply.code(200).type("text/plain").send(postedResponse(activityText.title, result.url));
+      return reply
+        .code(200)
+        .type("text/plain")
+        .send(postedResponse(activityText.title, result.url));
     },
   });
 
@@ -286,7 +206,10 @@ function ingestFailure(error: unknown): IngestError {
     : new InternalError();
 }
 
-if (process.argv[1] !== undefined && fileURLToPath(import.meta.url) === process.argv[1]) {
+if (
+  process.argv[1] !== undefined &&
+  fileURLToPath(import.meta.url) === process.argv[1]
+) {
   const settings = loadSettings();
   const app = createApp({
     settings,

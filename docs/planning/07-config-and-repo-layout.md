@@ -36,6 +36,14 @@ strava-bot/
     activity_text.ts        # deterministic title + description formatter
     strava.ts               # tokens, createActivity, uploadStructured
     config.ts               # env + Secret Manager
+    ingest/                 # named steps and helpers for the §5 ingest sequence
+      error.ts              # HTTP-facing ingest error types
+      request_text.ts       # content-type-aware request body extraction
+      response_text.ts      # success response text
+      required_store.ts     # required Firestore operations and failure mapping
+      parse_stage.ts        # parse or persist the raw-only failure record
+      workout_timing.ts     # local/UTC start time and elapsed duration
+      post_stage.ts         # Strava post and terminal result persistence
     ports/                  # injected collaborators, one interface per module
       ingest_settings.ts    # IngestSettings + resolveSettings
       activity_client.ts    # ActivityClient + Strava and unavailable factories
@@ -58,6 +66,10 @@ strava-bot/
     test_logging.ts
     test_ingest_settings.ts
     test_activity_client.ts
+    test_required_store.ts
+    test_parse_stage.ts
+    test_workout_timing.ts
+    test_post_stage.ts
     test_util_attempt.ts
   terraform/
     main.tf                 # project, APIs, Firestore, secrets, IAM, Cloud Build trigger, budget (§5, ADR 0007)

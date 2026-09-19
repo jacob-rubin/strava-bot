@@ -130,7 +130,6 @@ export class Settings {
   readonly stravaUseStructuredUpload: boolean;
   readonly maxBodyBytes: number;
   readonly elapsedCapS: number;
-  readonly debugLogRawText: boolean;
   readonly #secrets: SecretManagerSecretAccessor;
 
   constructor(env: NodeJS.ProcessEnv, secrets: SecretManagerSecretAccessor) {
@@ -150,13 +149,6 @@ export class Settings {
       env.ELAPSED_CAP_S,
       "ELAPSED_CAP_S",
       DEFAULT_ELAPSED_CAP_S,
-    );
-    // Constraint 7 permits logging raw_text; ADR 0011 records the tradeoff and
-    // why this defaults on. Secrets are never loggable regardless of this flag.
-    this.debugLogRawText = parseBoolean(
-      env.DEBUG_LOG_RAW_TEXT,
-      "DEBUG_LOG_RAW_TEXT",
-      true,
     );
     this.#secrets = secrets;
   }
@@ -198,7 +190,6 @@ export class Settings {
       stravaUseStructuredUpload: this.stravaUseStructuredUpload,
       maxBodyBytes: this.maxBodyBytes,
       elapsedCapS: this.elapsedCapS,
-      debugLogRawText: this.debugLogRawText,
     };
   }
 

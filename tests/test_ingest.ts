@@ -67,7 +67,6 @@ class FakeSettings implements IngestSettings {
   constructor(
     readonly ingestKey = "correct-key",
     readonly pathToken = "correct-token",
-    readonly debugLogRawText = true,
   ) {}
 
   async getIngestKey(): Promise<string> {
@@ -423,15 +422,18 @@ describe("request logging", () => {
     });
   });
 
-  it("omits the payload when DEBUG_LOG_RAW_TEXT is off", async () => {
+  it("logs the payload unconditionally: no setting suppresses it for a non-404", async () => {
     const records: RequestLog[] = [];
-    const settings = new FakeSettings("correct-key", "correct-token", false);
+    const settings = new FakeSettings("correct-key", "correct-token");
     const { app } = harness({ settings, log: (r) => records.push(r) });
 
     const response = await post(app, { payload: VALID_SHARE_TEXT });
 
     expect(response.statusCode).toBe(200);
-    expect(onlyRecord(records)).toEqual({ status: 200 });
+    expect(onlyRecord(records)).toEqual({
+      status: 200,
+      raw_text: VALID_SHARE_TEXT,
+    });
   });
 
   it("logs the shared text rather than the JSON envelope that carried it", async () => {
@@ -465,7 +467,7 @@ describe("request logging", () => {
     ]);
   });
 
-  it("logs the payload of an unparseable body, which is the point of the flag", async () => {
+  it("logs the payload of an unparseable body, which is the point of logging it", async () => {
     const records: RequestLog[] = [];
     const { app } = harness({ log: (r) => records.push(r) });
     const raw = "some unrecognised set format 3x5 @ 225";
@@ -564,7 +566,7 @@ describe("request logging", () => {
     expect(records).toHaveLength(0);
   });
 
-  it("never logs a secret, even with DEBUG_LOG_RAW_TEXT on (constraint 7)", async () => {
+  it("never logs a secret, even though the payload is always logged (constraint 7)", async () => {
     const records: RequestLog[] = [];
     const { app } = harness({ log: (r) => records.push(r) });
 

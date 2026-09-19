@@ -21,7 +21,7 @@ last-updated: 2026-09-19
 
 Retries are the user's job — tapping Share again is idempotent by construction. Do not build a background retry queue.
 
-Log one line per ingest request, carrying two things: the `status` it answered with, and the `raw_text` payload that was shared when `DEBUG_LOG_RAW_TEXT` is enabled (it defaults to `true`). Log the shared text, not the JSON envelope that may have carried it. Omit `raw_text` rather than emitting it as `null`, and emit the bare `{"status":404}` counter for a bad auth — §11 allows that case no request data at all. `/health` logs nothing.
+Log one line per ingest request, carrying two things: the `status` it answered with, and the `raw_text` payload that was shared. There is no flag: the payload is always logged. Log the shared text, not the JSON envelope that may have carried it. Omit `raw_text` rather than emitting it as `null`, and emit the bare `{"status":404}` counter for a bad auth — §11 allows that case no request data at all. `/health` logs nothing.
 
 Everything else is recoverable elsewhere and is deliberately not repeated here: latency and request size come from Cloud Run's own request log, and the outcome, dedupe key, attempt count, and the provider's fault text are all on the workout document in Firestore ([ADR 0012](../decisions/0012-minimal-request-log.md)).
 

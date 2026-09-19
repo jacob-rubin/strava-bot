@@ -11,7 +11,7 @@ last-updated: 2026-09-19
 
 The fields were also redundant three ways over. Cloud Run writes its own request log for every invocation, with the response status, wall-clock latency, and request size; `elapsed_s`, `body_bytes`, and the Strava latency were a second, less reliable copy. The outcome, dedupe key, attempt count, and the provider's fault text are all persisted on the workout document, which outlives Cloud Logging's 30-day bucket. What the owner actually reaches for when a share misbehaves is the text Strong sent and the status the service answered with.
 
-**Decision.** The owner decided on 2026-09-19 that the line is `{"status":<code>}` plus `raw_text` when [`DEBUG_LOG_RAW_TEXT`](0011-allow-raw-text-debug-logging.md) is on, and nothing else. Every other field is dropped. The payload logged is the shared text, not the JSON envelope that may have carried it, so it matches what [§6](../planning/04-persistence.md) persists. One route-scoped `onResponse` hook emits it, which replaces the state object, the accessor, the app-level hooks, and the per-outcome logging calls; the route handler went back to throwing a typed `IngestError` and no longer knows that logging exists.
+**Decision.** The owner decided on 2026-09-19 that the line is `{"status":<code>}` plus the [`raw_text` payload](0011-allow-raw-text-debug-logging.md), which is logged unconditionally, and nothing else. Every other field is dropped. The payload logged is the shared text, not the JSON envelope that may have carried it, so it matches what [§6](../planning/04-persistence.md) persists. One route-scoped `onResponse` hook emits it, which replaces the state object, the accessor, the app-level hooks, and the per-outcome logging calls; the route handler went back to throwing a typed `IngestError` and no longer knows that logging exists.
 
 **Consequences.**
 
@@ -19,7 +19,7 @@ The fields were also redundant three ways over. Cloud Run writes its own request
 - **`request_id` is gone, and with it the id in the 500 response body**, which is now the bare `internal error`. A correlation id that appears in exactly one log line and one response body earns nothing in a single-user service where the payload itself identifies the request. [§5](../planning/03-ingest-api.md) is amended to match.
 - **Rate-limit headers are no longer in this record.** `app/strava.ts` still writes its own plain-text usage lines, which is where a 429 investigation should start.
 - **`/health` stops logging.** The hook is scoped to the ingest route, so Cloud Run's health checks no longer produce a constant background of structured lines.
-- **[Constraint 3](../CONSTRAINTS.md) and [Constraint 7](../CONSTRAINTS.md) are untouched.** A bad auth emits the bare `{"status":404}` counter with no payload and no request metadata, and `raw_text` stays gated behind `DEBUG_LOG_RAW_TEXT` per [ADR 0011](0011-allow-raw-text-debug-logging.md).
+- **[Constraint 3](../CONSTRAINTS.md) and [Constraint 7](../CONSTRAINTS.md) are untouched.** A bad auth emits the bare `{"status":404}` counter with no payload and no request metadata, and every other request logs its `raw_text` per [ADR 0011](0011-allow-raw-text-debug-logging.md).
 - **Amends the logging paragraph of [§11](../planning/08-error-handling.md) and the 500 row of [§5](../planning/03-ingest-api.md).** The superseded field list is preserved above as the thing being changed.
 
 → [Error handling §11](../planning/08-error-handling.md) · [Ingest API §5](../planning/03-ingest-api.md) · [ADR 0011](0011-allow-raw-text-debug-logging.md)
