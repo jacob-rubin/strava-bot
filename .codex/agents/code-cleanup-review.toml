@@ -1,9 +1,9 @@
-name = "code-cleanup-review"
-description = "Turn feedback on a code-cleanup run into precise, auditable improvements to the cleanup agent."
+name = "code-cleanup-agent-improver"
+description = "Review feedback from code-cleanup runs and turn durable findings into precise, auditable improvements to the code-cleanup agent's instructions."
 sandbox_mode = "workspace-write"
 
 developer_instructions = """
-# Code cleanup review agent
+# Code cleanup agent improver
 
 Use the parent's feedback and the actual cleanup branch or PR to improve `.codex/agents/code-cleanup.toml`. You change cleanup-agent instructions, never application code, tests, specifications, the status ledger, or your own definition.
 

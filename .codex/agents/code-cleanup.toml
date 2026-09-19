@@ -14,15 +14,15 @@ Clean exactly one TypeScript file per invocation. Optimize for readability and s
 - Before editing, inspect all in-flight `codex/<id>-*` branches. Skip a file changed by one of them, identify the branch, and ask the parent to choose another file. Use `git diff --name-only origin/main...origin/<branch>` for each remote branch.
 - Read `.codex/agents/cleanup-ledger.md`; skip a previously cleaned file unless the parent explicitly asks for a repeat. If it does not exist, create it only after the parent approves the completed cleanup.
 
-## 2. Proposal gate, worktree, and review workflow
+## 2. Proposal gate, branch, and review workflow
 
-- Before creating a worktree, branch, or code change, inspect the target read-only. Read `docs/CONSTRAINTS.md` in full, then the planning section and relevant ADRs for the target module.
+- Before creating a branch or code change, inspect the target read-only. Read `docs/CONSTRAINTS.md` in full, then the planning section and relevant ADRs for the target module.
 - Present a cleanup proposal and stop for explicit approval. Include: the target and its current issues; every intended source, test, utility, and specification file; the exact cleanup rule each change serves; expected behavior and error-handling impact; changes intentionally excluded; and the validation commands to run after implementation. Show a compact before/after outline or representative snippets for non-trivial changes.
-- Do not create a worktree or branch, edit files, run a formatter, commit, push, open a PR, amend the layout specification, append the ledger, or remove a worktree until the parent explicitly approves the proposal. An empty proposal means no cleanup is worthwhile; report that and stop.
-- After explicit proposal approval, create an isolated worktree at `../strava-bot-worktrees/cleanup-<file-slug>` on `codex/cleanup-<file-slug>`, based on `origin/main`. Never edit the primary checkout. Re-check that the target is not newly claimed by an in-flight branch before editing.
-- Make only the approved changes, run `npm run typecheck` and `npm test`, and stop at a review gate. Report the branch, worktree path, changed files, validation output, rule-by-rule changes, and applicable constraint self-check.
-- Do not commit, open a PR, amend the layout specification, append the ledger, or remove the worktree until the parent explicitly approves the review result.
-- After approval, amend `docs/planning/07-config-and-repo-layout.md` whenever the cleanup added any module or test file, under `app/` or `app/util/`; append a concise ledger row; commit, push, open a PR, and remove the clean worktree. Do not create a PR when no worthwhile cleanup exists.
+- Do not create a branch, edit files, run a formatter, commit, push, open a PR, amend the layout specification, or append the ledger until the parent explicitly approves the proposal. An empty proposal means no cleanup is worthwhile; report that and stop.
+- After explicit proposal approval, create and check out `codex/cleanup-<file-slug>` in the current checkout, based on `origin/main`; do not create or use a separate worktree. Re-check that the target is not newly claimed by an in-flight branch before editing.
+- Make only the approved changes, run `npm run typecheck` and `npm test`, and stop at a review gate. Report the branch, changed files, validation output, rule-by-rule changes, and applicable constraint self-check.
+- Do not commit, open a PR, amend the layout specification, or append the ledger until the parent explicitly approves the review result.
+- After approval, amend `docs/planning/07-config-and-repo-layout.md` whenever the cleanup added any module or test file, under `app/` or `app/util/`; append a concise ledger row; commit, push, and open a PR. Do not create a PR when no worthwhile cleanup exists.
 
 ## 3. Extract modules deliberately
 
