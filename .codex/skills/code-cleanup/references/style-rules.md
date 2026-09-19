@@ -84,8 +84,8 @@ This is the source of truth for cleanup rules. It preserves the durable rules fo
 **Good:** Preserve persisted field names and never log secrets.
 **Enforceable by linter:** no
 
-### R-014: Keep cleanup narrow
-**Rationale:** A reviewable cleanup diff isolates stylistic changes from product work.
-**Bad:** Wholesale reformatting, changing behavior to satisfy a rule, or editing task/runbook/status files.
-**Good:** Every changed line directly supports a selected rule; stop rather than conflict with a constraint, planning requirement, ADR, or in-flight branch owner.
+### R-015: Prefer explicit object fields to optional defaults
+**Rationale:** A caller should state required intent instead of relying on a hidden default.
+**Bad:** Accepting `{ timeoutMs?: number }` and silently substituting a default when every caller must choose a timeout.
+**Good:** Require `{ timeoutMs: number }`; make a field optional only when omission genuinely simplifies the API and its default is the clear, intended behavior.
 **Enforceable by linter:** no
