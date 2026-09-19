@@ -1,16 +1,9 @@
-/**
- * HTTP entrypoint for the Strong-to-Strava ingest path (§5).
- *
- * The route deliberately owns request ordering: authentication and the
- * Content-Length check happen in `onRequest`, before Fastify reads a body;
- * parsing, idempotency, the durable write, local formatting, the Strava call,
- * and the terminal write then happen in that order in the handler.
- */
+/** Strong-to-Strava ingest entrypoint. The request ordering here is fixed by §5. */
 
-import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
-import { Firestore, Timestamp } from "@google-cloud/firestore";
+import { Timestamp } from "@google-cloud/firestore";
 import Fastify, {
   type FastifyInstance,
   type FastifyReply,
@@ -19,8 +12,14 @@ import Fastify, {
 import { DateTime } from "luxon";
 
 import { formatActivityText } from "./activity_text.js";
-import { loadSettings, type Settings } from "./config.js";
-import type { HistoryContext, WorkoutSummary } from "./models.js";
+import {
+  logAuthFailed,
+  logRequest,
+  newRequestState,
+  toRequestLog,
+  type RequestLog,
+  type RequestState,
+} from "./logging.js";
 import {
   contentHash,
   dedupeKey,
@@ -30,127 +29,52 @@ import {
   summarizeWorkout,
 } from "./parser.js";
 import {
-  firestoreWorkouts,
-  WorkoutStore,
-  type ReceivedWorkout,
-  type StoredWorkout,
-  type WorkoutResult,
-} from "./store.js";
+  defaultStravaClient,
+  unavailableActivityClient,
+  type ActivityClient,
+} from "./ports/activity_client.js";
+import { resolveSettings, type IngestSettings } from "./ports/ingest_settings.js";
+import { defaultStore, type WorkoutStoreLike } from "./ports/workout_store_like.js";
 import {
   StravaApiError,
-  StravaClient,
-  type CreateActivityInput,
-  type CreateActivityResult,
-  type StravaFailureStage,
-  type StravaSettings,
   type StructuredWorkoutInput,
-  type StravaUsage,
 } from "./strava.js";
+import { attempt, attemptSync } from "./util/attempt.js";
 
 const MAX_RESPONSE_LENGTH = 200;
 
 type IngestParams = { path_token: string };
 
-export interface IngestSettings {
-  readonly localTz: string;
-  readonly maxBodyBytes: number;
-  readonly elapsedCapS: number;
-  readonly debugLogRawText: boolean;
-  getIngestKey(): Promise<string>;
-  getIngestPathToken(): Promise<string>;
-}
-
-export interface WorkoutStoreLike {
-  findExisting(
-    dedupeKey: string,
-    contentHash: string,
-  ): Promise<StoredWorkout | null>;
-  recordReceived(workout: ReceivedWorkout): Promise<void>;
-  recordResult(dedupeKey: string, result: WorkoutResult): Promise<void>;
-  getHistoryContext(
-    summary: WorkoutSummary,
-    startedAt: Timestamp,
-  ): Promise<HistoryContext>;
-}
-
-export interface ActivityClient {
-  createActivity(
-    activity: CreateActivityInput,
-    structuredWorkout?: StructuredWorkoutInput,
-  ): Promise<CreateActivityResult>;
-}
-
-export interface RequestLog {
-  request_id: string;
-  dedupe_key: string | null;
-  outcome: string;
-  elapsed_s: number | null;
-  strava_latency_s: number | null;
-  strava_failure_stage: StravaFailureStage | "unknown" | null;
-  /**
-   * HTTP status Strava returned on the failing call. The numeric status is the
-   * one piece of provider detail that is safe to record — it distinguishes an
-   * auth failure (401) from a validation failure (400) or a throttle (429)
-   * without carrying provider fault text.
-   */
-  strava_status: number | null;
-  rate_limit_headers: StravaUsage | null;
-  body_bytes: number | null;
-  content_type: string | null;
-  /** Present only when DEBUG_LOG_RAW_TEXT is enabled. Never a secret. */
-  raw_text?: string;
-}
-
 export interface CreateAppOptions {
-  settings?: IngestSettings;
-  store?: WorkoutStoreLike;
-  strava?: ActivityClient;
-  now?: () => Date;
-  log?: (record: RequestLog) => void;
+  readonly settings?: IngestSettings;
+  readonly store?: WorkoutStoreLike;
+  readonly strava?: ActivityClient;
+  readonly now?: () => Date;
+  readonly log?: (record: RequestLog) => void;
 }
 
-interface RequestState {
-  requestId: string;
-  dedupeKey: string | null;
-  elapsedS: number | null;
-  outcome: string;
-  stravaLatencyS: number | null;
-  stravaFailureStage: StravaFailureStage | "unknown" | null;
-  stravaStatus: number | null;
-  rateLimitHeaders: StravaUsage | null;
-  authFailed: boolean;
-  bodyBytes: number | null;
-  contentType: string | null;
-  rawText: string | null;
-}
-
-/**
- * Build the Fastify app without listening, so callers and tests can use
- * `app.inject()`. Production startup is at the bottom of this module.
- */
 export function createApp(options: CreateAppOptions = {}): FastifyInstance {
-  let runtimeSettings: Settings | undefined;
-  let settings: IngestSettings;
-  if (options.settings === undefined) {
-    runtimeSettings = loadSettings();
-    settings = runtimeSettings;
-  } else {
-    settings = options.settings;
-  }
+  const { settings, runtimeSettings } = resolveSettings(options.settings);
   const store = options.store ?? defaultStore();
   const strava =
     options.strava ??
-    (runtimeSettings === undefined
+    (runtimeSettings === null
       ? unavailableActivityClient()
       : defaultStravaClient(runtimeSettings));
   const now = options.now ?? (() => new Date());
-  const log = options.log ?? ((record: RequestLog) => console.log(JSON.stringify(record)));
+  const log = options.log ?? logRequest;
   const states = new WeakMap<FastifyRequest, RequestState>();
+  const requestState = (request: FastifyRequest): RequestState => {
+    const state = states.get(request);
+    if (state === undefined) {
+      throw new Error("request state is missing: the onRequest hook did not run");
+    }
+    return state;
+  };
 
   const app = Fastify({ bodyLimit: settings.maxBodyBytes });
 
-  // Keep the raw payload until this route selects its supported representation.
-  // Fastify's bodyLimit still protects requests without Content-Length.
+  // Bodies stay raw: constraint 6 persists exactly the text that was sent.
   app.addContentTypeParser(
     "application/json",
     { parseAs: "string" },
@@ -163,83 +87,43 @@ export function createApp(options: CreateAppOptions = {}): FastifyInstance {
   );
 
   app.addHook("onRequest", (request, _reply, done) => {
-    states.set(request, {
-      requestId: randomUUID(),
-      dedupeKey: null,
-      elapsedS: null,
-      outcome: "internal_error",
-      stravaLatencyS: null,
-      stravaFailureStage: null,
-      stravaStatus: null,
-      rateLimitHeaders: null,
-      authFailed: false,
-      bodyBytes: null,
-      contentType: null,
-      rawText: null,
-    });
+    states.set(request, newRequestState());
     done();
   });
 
   app.addHook("onResponse", (request, _reply, done) => {
-    const state = states.get(request);
-    if (state !== undefined && !state.authFailed) {
-      const record: RequestLog = {
-        request_id: state.requestId,
-        dedupe_key: state.dedupeKey,
-        outcome: state.outcome,
-        elapsed_s: state.elapsedS,
-        strava_latency_s: state.stravaLatencyS,
-        strava_failure_stage: state.stravaFailureStage,
-        strava_status: state.stravaStatus,
-        rate_limit_headers: state.rateLimitHeaders,
-        body_bytes: state.bodyBytes,
-        content_type: state.contentType,
-      };
-      // Constraint 7 / ADR 0011: raw_text is loggable behind this flag. A
-      // secret still never reaches this record under any configuration.
-      if (settings.debugLogRawText && state.rawText !== null) {
-        record.raw_text = state.rawText;
-      }
-      log(record);
-    }
-    // For bad auth, do not log request metadata. This one counter-shaped line
-    // is the only authentication-failure signal permitted by §11.
-    if (state?.authFailed === true) {
-      console.log(JSON.stringify({ outcome: "auth_failed" }));
+    const state = requestState(request);
+    if (state.authFailed) {
+      logAuthFailed();
+    } else {
+      log(toRequestLog(state, settings.debugLogRawText));
     }
     done();
   });
 
   app.setErrorHandler((error, request, reply) => {
-    const state = states.get(request);
-    if (state !== undefined) {
-      state.outcome = "internal_error";
-    }
+    const state = requestState(request);
+    state.outcome = "internal_error";
     const errorCode =
       error instanceof Error && "code" in error && typeof error.code === "string"
         ? error.code
         : null;
     if (errorCode === "FST_ERR_CTP_BODY_TOO_LARGE") {
-      if (state !== undefined) {
-        state.outcome = "payload_too_large";
-      }
+      state.outcome = "payload_too_large";
       void reply.code(413).type("text/plain").send("payload too large");
       return;
     }
     void reply.code(500).type("text/plain").send(internalError(state));
   });
 
-  app.get("/health", async (_request, reply) => {
-    const state = states.get(_request);
-    if (state !== undefined) {
-      state.outcome = "healthy";
-    }
-    return reply.type("text/plain").send("ok");
+  app.get("/health", (request, reply) => {
+    requestState(request).outcome = "healthy";
+    reply.type("text/plain").send("ok");
   });
 
   app.post<{ Params: IngestParams }>("/ingest/:path_token", {
     onRequest: async (request, reply) => {
-      const state = states.get(request);
+      const state = requestState(request);
       const suppliedKey = headerValue(request.headers["x-ingest-key"]);
       const [expectedKey, expectedPathToken] = await Promise.all([
         settings.getIngestKey(),
@@ -250,46 +134,36 @@ export function createApp(options: CreateAppOptions = {}): FastifyInstance {
         !safeSecretEqual(suppliedKey, expectedKey) ||
         !safeSecretEqual(request.params.path_token, expectedPathToken)
       ) {
-        if (state !== undefined) {
-          state.outcome = "auth_failed";
-          state.authFailed = true;
-        }
+        state.outcome = "auth_failed";
+        state.authFailed = true;
         return reply.code(404).send();
       }
 
       const contentLength = contentLengthHeader(request.headers["content-length"]);
       if (contentLength !== null && contentLength > settings.maxBodyBytes) {
-        if (state !== undefined) {
-          state.outcome = "payload_too_large";
-        }
+        state.outcome = "payload_too_large";
         return reply.code(413).type("text/plain").send("payload too large");
       }
     },
     handler: async (request, reply) => {
-      const state = states.get(request);
+      const state = requestState(request);
       const rawText = requestText(request);
-      if (state !== undefined) {
-        state.bodyBytes = Buffer.byteLength(rawText, "utf8");
-        state.contentType = headerValue(request.headers["content-type"]) || null;
-        state.rawText = rawText;
-      }
+      state.bodyBytes = Buffer.byteLength(rawText, "utf8");
+      state.contentType = headerValue(request.headers["content-type"]) || null;
+      state.rawText = rawText;
       const receivedAt = DateTime.fromJSDate(now(), { zone: settings.localTz });
 
-      let workout;
-      try {
-        workout = parseWorkout(rawText);
-      } catch (error: unknown) {
-        if (!(error instanceof ParseError)) {
+      const parseResult = attemptSync(() => parseWorkout(rawText));
+      if (!parseResult.ok) {
+        if (!(parseResult.error instanceof ParseError)) {
           return failInternal(reply, state);
         }
 
         const parseFailureKey = rawTextHash(rawText);
-        if (state !== undefined) {
-          state.dedupeKey = parseFailureKey;
-          state.outcome = "unparseable";
-        }
-        try {
-          await store.recordReceived({
+        state.dedupeKey = parseFailureKey;
+        state.outcome = "unparseable";
+        const recorded = await attempt(() =>
+          store.recordReceived({
             dedupe_key: parseFailureKey,
             content_hash: parseFailureKey,
             raw_text: rawText,
@@ -297,39 +171,37 @@ export function createApp(options: CreateAppOptions = {}): FastifyInstance {
             started_at: null,
             elapsed_s: null,
             received_at: Timestamp.fromDate(receivedAt.toJSDate()),
-          });
-        } catch {
+          }),
+        );
+        if (!recorded.ok) {
           return failInternal(reply, state);
         }
         return reply.code(400).type("text/plain").send("not a Strong workout");
       }
 
+      const workout = parseResult.value;
       const workoutDedupeKey = dedupeKey(workout);
       const workoutContentHash = contentHash(workout);
-      if (state !== undefined) {
-        state.dedupeKey = workoutDedupeKey;
-      }
+      state.dedupeKey = workoutDedupeKey;
 
-      let existing: StoredWorkout | null;
-      try {
-        existing = await store.findExisting(workoutDedupeKey, workoutContentHash);
-      } catch {
+      const lookup = await attempt(() =>
+        store.findExisting(workoutDedupeKey, workoutContentHash),
+      );
+      if (!lookup.ok) {
         return failInternal(reply, state);
       }
+      const existing = lookup.value;
 
       if (existing !== null && existing.status !== "failed") {
-        if (state !== undefined) {
-          state.outcome = "already_posted";
-        }
+        state.outcome = "already_posted";
         return reply
           .code(200)
           .type("text/plain")
           .send(limitResponse(`already posted: ${displayUrl(existing.strava?.url)}`));
       }
 
-      // A rejected Strava request has a durable record but no activity.  The
-      // owner retries by sharing again, so preserve that record (and its
-      // attempt count) rather than treating it as a completed duplicate.
+      // A failed post keeps its record and attempt count, so sharing again retries
+      // it instead of being turned away as a completed duplicate.
       const resultDedupeKey =
         existing?.status === "failed" ? existing.dedupe_key : workoutDedupeKey;
 
@@ -340,9 +212,7 @@ export function createApp(options: CreateAppOptions = {}): FastifyInstance {
         summary.total_sets,
         settings.elapsedCapS,
       );
-      if (state !== undefined) {
-        state.elapsedS = elapsedS;
-      }
+      state.elapsedS = elapsedS;
 
       const startedAtDateTime = DateTime.fromISO(workout.started_at, {
         zone: settings.localTz,
@@ -356,8 +226,8 @@ export function createApp(options: CreateAppOptions = {}): FastifyInstance {
       const startedAt = Timestamp.fromDate(startedAtDateTime.toJSDate());
 
       if (existing === null) {
-        try {
-          await store.recordReceived({
+        const recorded = await attempt(() =>
+          store.recordReceived({
             dedupe_key: workoutDedupeKey,
             content_hash: workoutContentHash,
             raw_text: rawText,
@@ -365,34 +235,30 @@ export function createApp(options: CreateAppOptions = {}): FastifyInstance {
             started_at: startedAt,
             elapsed_s: elapsedS,
             received_at: Timestamp.fromDate(receivedAt.toJSDate()),
-          });
-        } catch {
+          }),
+        );
+        if (!recorded.ok) {
           return failInternal(reply, state);
         }
       }
 
-      // §6: read history before the post so this workout never compares
-      // against itself; history is written only after the Strava call.
-      let historyContext: HistoryContext;
-      try {
-        historyContext = await store.getHistoryContext(summary, startedAt);
-      } catch {
+      // §6: history is read before the post so this workout never compares against itself.
+      const history = await attempt(() => store.getHistoryContext(summary, startedAt));
+      if (!history.ok) {
         return failInternal(reply, state);
       }
 
-      // §8 formatting is synchronous, local, and happens only after the
-      // idempotency record is durable and before the Strava call.
-      const activityText = formatActivityText(summary, historyContext);
+      // §8 / constraint 9: formatting is local and deterministic, never a network call.
+      const activityText = formatActivityText(summary, history.value);
 
-      let result: CreateActivityResult;
       const stravaStartedAt = Date.now();
-      try {
+      const created = await attempt(() => {
         const structuredWorkout: StructuredWorkoutInput = {
           start_time_utc: startedAtUtc,
           utc_offset: startedAtDateTime.offset * 60,
           exercises: summary.exercises,
         };
-        result = await strava.createActivity(
+        return strava.createActivity(
           {
             name: activityText.title,
             description: activityText.description,
@@ -401,37 +267,35 @@ export function createApp(options: CreateAppOptions = {}): FastifyInstance {
           },
           structuredWorkout,
         );
-      } catch (error: unknown) {
-        if (state !== undefined) {
-          state.stravaLatencyS = secondsSince(stravaStartedAt);
-          state.rateLimitHeaders = error instanceof StravaApiError ? error.usage : null;
-          state.stravaFailureStage =
-            error instanceof StravaApiError ? (error.stage ?? "unknown") : "unknown";
-          state.stravaStatus = error instanceof StravaApiError ? error.status : null;
-        }
-        try {
-          await store.recordResult(resultDedupeKey, {
+      });
+      state.stravaLatencyS = secondsSince(stravaStartedAt);
+
+      if (!created.ok) {
+        const error = created.error;
+        state.rateLimitHeaders = error instanceof StravaApiError ? error.usage : null;
+        state.stravaFailureStage =
+          error instanceof StravaApiError ? (error.stage ?? "unknown") : "unknown";
+        state.stravaStatus = error instanceof StravaApiError ? error.status : null;
+        const recordedFailure = await attempt(() =>
+          store.recordResult(resultDedupeKey, {
             status: "failed",
             strava: null,
             error: stravaReason(error),
-          });
-        } catch {
+          }),
+        );
+        if (!recordedFailure.ok) {
           return failInternal(reply, state);
         }
-        if (state !== undefined) {
-          state.outcome = "strava_rejected";
-        }
+        state.outcome = "strava_rejected";
         return reply
           .code(502)
           .type("text/plain")
           .send(limitResponse(`strava rejected: ${stravaReason(error)}`));
       }
 
-      if (state !== undefined) {
-        state.stravaLatencyS = secondsSince(stravaStartedAt);
-      }
-      try {
-        await store.recordResult(resultDedupeKey, {
+      const result = created.value;
+      const recordedResult = await attempt(() =>
+        store.recordResult(resultDedupeKey, {
           status: "posted",
           strava: {
             activity_id: result.id,
@@ -440,14 +304,13 @@ export function createApp(options: CreateAppOptions = {}): FastifyInstance {
             method: result.method ?? "activities",
           },
           error: null,
-        });
-      } catch {
+        }),
+      );
+      if (!recordedResult.ok) {
         return failInternal(reply, state);
       }
 
-      if (state !== undefined) {
-        state.outcome = "posted";
-      }
+      state.outcome = "posted";
       return reply
         .code(200)
         .type("text/plain")
@@ -456,44 +319,6 @@ export function createApp(options: CreateAppOptions = {}): FastifyInstance {
   });
 
   return app;
-}
-
-/** Backwards-friendly name for consumers looking for an app factory. */
-export const buildApp = createApp;
-
-function defaultStore(): WorkoutStore {
-  return new WorkoutStore(firestoreWorkouts(new Firestore()));
-}
-
-function defaultStravaClient(settings: Settings): StravaClient {
-  const stravaSettings: StravaSettings = {
-    getStravaClientId: async () => settings.stravaClientId,
-    getStravaClientSecret: () => settings.getStravaClientSecret(),
-    getStravaRefreshToken: () => settings.getStravaRefreshToken(),
-    reloadStravaRefreshToken: () => settings.reloadStravaRefreshToken(),
-    addStravaRefreshTokenVersion: (value) =>
-      settings.addStravaRefreshTokenVersion(value),
-  };
-  // The route still emits exactly one structured RequestLog record per request.
-  // These transport lines are plain text, not RequestLog records, so that
-  // invariant holds. They are kept because the structured record alone cannot
-  // show a 401 that the client then recovered from by forcing a refresh — the
-  // call succeeds, nothing is thrown, and the token problem stays invisible.
-  // logUsageLine emits only kind, status, and rate-limit counters; no token,
-  // secret, or provider fault text passes through it (CONSTRAINTS rule 7).
-  return new StravaClient({
-    settings: stravaSettings,
-    log: (line) => console.log(line),
-    useStructuredUpload: settings.stravaUseStructuredUpload,
-  });
-}
-
-function unavailableActivityClient(): ActivityClient {
-  return {
-    async createActivity(): Promise<CreateActivityResult> {
-      throw new Error("No Strava client was supplied to the app factory.");
-    },
-  };
 }
 
 function headerValue(value: string | string[] | undefined): string {
@@ -517,24 +342,25 @@ function safeSecretEqual(supplied: string, expected: string): boolean {
 
 function requestText(request: FastifyRequest): string {
   const body = request.body;
-  const contentType = headerValue(request.headers["content-type"]).toLowerCase();
   if (typeof body !== "string") {
     return "";
   }
-  if (contentType.startsWith("application/json")) {
-    try {
-      const parsed: unknown = JSON.parse(body);
-      if (
-        parsed !== null &&
-        typeof parsed === "object" &&
-        typeof (parsed as { text?: unknown }).text === "string"
-      ) {
-        return (parsed as { text: string }).text;
-      }
-    } catch {
-      // An invalid JSON body follows the same unparseable-text persistence path.
-    }
+  const contentType = headerValue(request.headers["content-type"]).toLowerCase();
+  if (!contentType.startsWith("application/json")) {
     return body;
+  }
+  try {
+    const parsed: unknown = JSON.parse(body);
+    if (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      "text" in parsed &&
+      typeof parsed.text === "string"
+    ) {
+      return parsed.text;
+    }
+  } catch {
+    // Constraint 6: an invalid JSON body is persisted as unparseable text, not rejected.
   }
   return body;
 }
@@ -558,8 +384,6 @@ function limitResponse(value: string): string {
 }
 
 function secondsSince(startedAt: number): number {
-  // Date.now() is milliseconds; divide to get seconds, then round to the
-  // nearest millisecond for a readable log value.
   return Math.round(Date.now() - startedAt) / 1000;
 }
 
@@ -570,14 +394,12 @@ function stravaReason(error: unknown): string {
   return "Strava request failed";
 }
 
-function internalError(state: RequestState | undefined): string {
-  return `internal error: ${state?.requestId ?? randomUUID()}`;
+function internalError(state: RequestState): string {
+  return `internal error: ${state.requestId}`;
 }
 
-function failInternal(reply: FastifyReply, state: RequestState | undefined): FastifyReply {
-  if (state !== undefined) {
-    state.outcome = "internal_error";
-  }
+function failInternal(reply: FastifyReply, state: RequestState): FastifyReply {
+  state.outcome = "internal_error";
   return reply.code(500).type("text/plain").send(internalError(state));
 }
 
