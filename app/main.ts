@@ -5,7 +5,6 @@ import { fileURLToPath } from "node:url";
 import { Timestamp } from "@google-cloud/firestore";
 import Fastify, {
   type FastifyInstance,
-  type FastifyReply,
   type FastifyRequest,
 } from "fastify";
 import { DateTime } from "luxon";
@@ -120,7 +119,6 @@ export function createApp({
       void reply.code(error.statusCode).type("text/plain").send(error.message);
       return;
     }
-    state.outcome = "internal_error";
     const errorCode =
       error instanceof Error && "code" in error && typeof error.code === "string"
         ? error.code
@@ -130,6 +128,7 @@ export function createApp({
       void reply.code(413).type("text/plain").send(new PayloadTooLargeError().message);
       return;
     }
+    state.outcome = "internal_error";
     void reply.code(500).type("text/plain").send(new InternalError(state.requestId).message);
   });
 
@@ -174,7 +173,7 @@ export function createApp({
       const parseResult = attemptSync(() => parseWorkout(rawText));
       if (!parseResult.ok) {
         if (!(parseResult.error instanceof ParseError)) {
-          return failInternal(reply, state);
+          return failInternal(state);
         }
 
         const parseFailureKey = rawTextHash(rawText);
@@ -192,7 +191,7 @@ export function createApp({
           }),
         );
         if (!recorded.ok) {
-          return failInternal(reply, state);
+          return failInternal(state);
         }
         throw new UnparseableWorkoutError();
       }
@@ -206,7 +205,7 @@ export function createApp({
         store.findExisting(workoutDedupeKey, workoutContentHash),
       );
       if (!lookup.ok) {
-        return failInternal(reply, state);
+        return failInternal(state);
       }
       const existing = lookup.value;
 
@@ -239,7 +238,7 @@ export function createApp({
         .toUTC()
         .toISO({ suppressMilliseconds: true });
       if (startedAtUtc === null) {
-        return failInternal(reply, state);
+        return failInternal(state);
       }
       const startedAt = Timestamp.fromDate(startedAtDateTime.toJSDate());
 
@@ -256,14 +255,14 @@ export function createApp({
           }),
         );
         if (!recorded.ok) {
-          return failInternal(reply, state);
+          return failInternal(state);
         }
       }
 
       // §6: history is read before the post so this workout never compares against itself.
       const history = await attempt(() => store.getHistoryContext(summary, startedAt));
       if (!history.ok) {
-        return failInternal(reply, state);
+        return failInternal(state);
       }
 
       // §8 / constraint 9: formatting is local and deterministic, never a network call.
@@ -290,10 +289,10 @@ export function createApp({
 
       if (!created.ok) {
         const error = created.error;
-        state.rateLimitHeaders = error instanceof StravaApiError ? error.usage : null;
-        state.stravaFailureStage =
-          error instanceof StravaApiError ? (error.stage ?? "unknown") : "unknown";
-        state.stravaStatus = error instanceof StravaApiError ? error.status : null;
+        const apiError = error instanceof StravaApiError ? error : null;
+        state.rateLimitHeaders = apiError?.usage ?? null;
+        state.stravaFailureStage = apiError?.stage ?? "unknown";
+        state.stravaStatus = apiError?.status ?? null;
         const recordedFailure = await attempt(() =>
           store.recordResult(resultDedupeKey, {
             status: "failed",
@@ -302,7 +301,7 @@ export function createApp({
           }),
         );
         if (!recordedFailure.ok) {
-          return failInternal(reply, state);
+          return failInternal(state);
         }
         state.outcome = "strava_rejected";
         throw new StravaRejectedError(error);
@@ -322,7 +321,7 @@ export function createApp({
         }),
       );
       if (!recordedResult.ok) {
-        return failInternal(reply, state);
+        return failInternal(state);
       }
 
       state.outcome = "posted";
@@ -333,7 +332,7 @@ export function createApp({
   return app;
 }
 
-function failInternal(_reply: FastifyReply, state: RequestState): never {
+function failInternal(state: RequestState): never {
   state.outcome = "internal_error";
   throw new InternalError(state.requestId);
 }
