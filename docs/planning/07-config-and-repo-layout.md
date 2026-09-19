@@ -1,6 +1,6 @@
 ---
 status: authoritative
-last-updated: 2026-09-14
+last-updated: 2026-09-19
 ---
 
 ← [Index](../PLANNING.md)
@@ -29,12 +29,19 @@ The service needs `roles/secretmanager.secretAccessor` and, for refresh-token ro
 strava-bot/
   app/
     main.ts                 # Fastify server, routes, processing order (§5)
+    logging.ts              # RequestLog record, per-request state, log writers (§11)
     parser.ts               # Strong share-text parser
     models.ts               # Workout, Exercise, WorkoutSet, summaries
     store.ts                # Firestore: workouts, history
     activity_text.ts        # deterministic title + description formatter
     strava.ts               # tokens, createActivity, uploadStructured
     config.ts               # env + Secret Manager
+    ports/                  # injected collaborators, one interface per module
+      ingest_settings.ts    # IngestSettings + resolveSettings
+      activity_client.ts    # ActivityClient + Strava and unavailable factories
+      workout_store_like.ts # WorkoutStoreLike + defaultStore
+    util/                   # no imports from domain modules
+      attempt.ts            # a thrown failure captured as a value
   scripts/
     authorize.ts            # one-time §7.2
     probe_upload_json.ts    # §7.4 [U] probe
@@ -48,6 +55,10 @@ strava-bot/
     test_activity_text.ts
     test_strava.ts
     test_ingest.ts
+    test_logging.ts
+    test_ingest_settings.ts
+    test_activity_client.ts
+    test_util_attempt.ts
   terraform/
     main.tf                 # project, APIs, Firestore, secrets, IAM, Cloud Build trigger, budget (§5, ADR 0007)
     variables.tf
