@@ -9,7 +9,7 @@ This is the source of truth for cleanup rules. It preserves the durable rules fo
 ### R-001: Extract modules only for a real boundary
 **Rationale:** Modules should represent a reusable or separate concern, not line-count reduction.
 **Bad:** Extracting a one-off helper solely to shorten a file.
-**Good:** Extracting a pure helper with two callers, or a domain concern from a module over roughly 300 lines.
+**Good:** Extracting a pure helper with two callers, a domain concern from a module over roughly 300 lines, or one step of a spec-mandated procedure split out under R-016 when the module is named for that step and has a single caller.
 **Enforceable by linter:** no
 
 ### R-002: Place modules by dependency direction
@@ -25,9 +25,9 @@ This is the source of truth for cleanup rules. It preserves the durable rules fo
 **Enforceable by linter:** partially
 
 ### R-004: Preserve the route's required ordering
-**Rationale:** Cleanup must not obscure required request sequencing.
-**Bad:** Moving ingest ordering out of `app/main.ts` merely to reduce its size.
-**Good:** Keep `app/main.ts` responsible for its route and required ingest API ordering; move only interfaces, factories, and record shapes it merely uses.
+**Rationale:** Cleanup must not obscure required request sequencing; the invariant is the ordering, not the file's size.
+**Bad:** Moving the §5 sequence itself, or the conditions that skip or short-circuit a step, out of `app/main.ts`.
+**Good:** Keep `app/main.ts` responsible for its route and for the §5 sequence and its branch points, visible as an ordered series of named calls; a step's internals may live in `app/ingest/<step>.ts`, and interfaces, factories, and record shapes it merely uses move freely.
 **Enforceable by linter:** no
 
 ### R-005: Document and test an in-scope extracted module
@@ -89,3 +89,9 @@ This is the source of truth for cleanup rules. It preserves the durable rules fo
 **Bad:** Accepting `{ timeoutMs?: number }` and silently substituting a default when every caller must choose a timeout.
 **Good:** Require `{ timeoutMs: number }`; make a field optional only when omission genuinely simplifies the API and its default is the clear, intended behavior.
 **Enforceable by linter:** no
+
+### R-016: Decompose long sequential procedures
+**Rationale:** A long straight-line body hides both its steps and the order they run in.
+**Bad:** A route handler that inlines parse, idempotency lookup, persistence, formatting, and the outbound post as one run of statements.
+**Good:** Split a function body that runs more than 20 consecutive statements into named steps, so the caller reads as an ordered sequence of step calls and each step is named for the spec step it performs. Count statements, not lines: wrapped call arguments are not a reason to split.
+**Enforceable by linter:** partially (`max-statements`; ESLint is not installed here, so this rule is prose-enforced — do not add ESLint as part of a cleanup)
