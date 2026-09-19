@@ -1,6 +1,6 @@
 ---
 status: authoritative
-last-updated: 2026-09-15
+last-updated: 2026-09-19
 ---
 
 ← [Index](../PLANNING.md)
@@ -19,5 +19,7 @@ Short records of choices in [PLANNING.md](../PLANNING.md) that trade something o
 - [0008](0008-typescript-node-runtime.md) — TypeScript on Node.js 24 LTS for the service, scripts, and tests
 - [0009](0009-allow-returned-read-scope.md) — Allow a returned `read` scope without using it (read ban narrowed by 0010)
 - [0010](0010-allow-development-read-calls.md) — Allow Strava read calls, including from `app/`; the AI prohibition stays absolute (supersedes 0002, 0009; filename kept for link stability)
+- [0011](0011-allow-raw-text-debug-logging.md) — Allow opt-out `raw_text` debug logging; keep the secret prohibition absolute
+- [0012](0012-minimal-request-log.md) — Log only the payload and the response status; drop the per-request state object
 
 ← [Index](../PLANNING.md)
