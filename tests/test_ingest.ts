@@ -12,7 +12,7 @@ import type { FastifyInstance } from "fastify";
 import { describe, expect, it, vi } from "vitest";
 
 import type { RequestLog } from "../app/logging.js";
-import { createApp } from "../app/main.js";
+import { createApp, type CreateAppOptions } from "../app/main.js";
 import type { HistoryContext } from "../app/models.js";
 import type { ActivityClient } from "../app/ports/activity_client.js";
 import type { IngestSettings } from "../app/ports/ingest_settings.js";
@@ -157,13 +157,14 @@ function harness(overrides: {
   const settings = overrides.settings ?? new FakeSettings();
   const store = overrides.store ?? new FakeStore();
   const strava = overrides.strava ?? new FakeStrava();
-  const app = createApp({
+  const appOptions = {
     settings,
     store,
     strava,
     now: () => new Date("2026-09-09T07:43:00Z"),
     log: overrides.log ?? (() => undefined),
-  });
+  } satisfies CreateAppOptions;
+  const app = createApp(appOptions);
   return { app, store, strava, settings };
 }
 

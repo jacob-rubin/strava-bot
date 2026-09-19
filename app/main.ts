@@ -1,6 +1,5 @@
 /** Strong-to-Strava ingest entrypoint. The request ordering here is fixed by §5. */
 
-import { createHash, timingSafeEqual } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 import { Timestamp } from "@google-cloud/firestore";
@@ -12,6 +11,20 @@ import Fastify, {
 import { DateTime } from "luxon";
 
 import { formatActivityText } from "./activity_text.js";
+import { loadSettings } from "./config.js";
+import {
+  alreadyPostedResponse,
+  postedResponse,
+} from "./ingest/response_text.js";
+import {
+  IngestError,
+  InternalError,
+  PayloadTooLargeError,
+  StravaRejectedError,
+  UnparseableWorkoutError,
+  stravaReason,
+} from "./ingest/error.js";
+import { requestText } from "./ingest/request_text.js";
 import {
   logAuthFailed,
   logRequest,
@@ -30,39 +43,36 @@ import {
 } from "./parser.js";
 import {
   defaultStravaClient,
-  unavailableActivityClient,
   type ActivityClient,
 } from "./ports/activity_client.js";
-import { resolveSettings, type IngestSettings } from "./ports/ingest_settings.js";
+import type { IngestSettings } from "./ports/ingest_settings.js";
 import { defaultStore, type WorkoutStoreLike } from "./ports/workout_store_like.js";
 import {
   StravaApiError,
   type StructuredWorkoutInput,
 } from "./strava.js";
 import { attempt, attemptSync } from "./util/attempt.js";
-
-const MAX_RESPONSE_LENGTH = 200;
+import { contentLengthHeader, headerValue } from "./util/http_headers.js";
+import { rawTextHash, secondsSince } from "./util/ingest.js";
+import { safeSecretEqual } from "./util/secret_comparison.js";
 
 type IngestParams = { path_token: string };
 
 export interface CreateAppOptions {
-  readonly settings?: IngestSettings;
-  readonly store?: WorkoutStoreLike;
-  readonly strava?: ActivityClient;
-  readonly now?: () => Date;
-  readonly log?: (record: RequestLog) => void;
+  readonly settings: IngestSettings;
+  readonly store: WorkoutStoreLike;
+  readonly strava: ActivityClient;
+  readonly now: () => Date;
+  readonly log: (record: RequestLog) => void;
 }
 
-export function createApp(options: CreateAppOptions = {}): FastifyInstance {
-  const { settings, runtimeSettings } = resolveSettings(options.settings);
-  const store = options.store ?? defaultStore();
-  const strava =
-    options.strava ??
-    (runtimeSettings === null
-      ? unavailableActivityClient()
-      : defaultStravaClient(runtimeSettings));
-  const now = options.now ?? (() => new Date());
-  const log = options.log ?? logRequest;
+export function createApp({
+  settings,
+  store,
+  strava,
+  now,
+  log,
+}: CreateAppOptions): FastifyInstance {
   const states = new WeakMap<FastifyRequest, RequestState>();
   const requestState = (request: FastifyRequest): RequestState => {
     const state = states.get(request);
@@ -103,6 +113,13 @@ export function createApp(options: CreateAppOptions = {}): FastifyInstance {
 
   app.setErrorHandler((error, request, reply) => {
     const state = requestState(request);
+    if (error instanceof IngestError) {
+      if (error instanceof PayloadTooLargeError) {
+        state.outcome = "payload_too_large";
+      }
+      void reply.code(error.statusCode).type("text/plain").send(error.message);
+      return;
+    }
     state.outcome = "internal_error";
     const errorCode =
       error instanceof Error && "code" in error && typeof error.code === "string"
@@ -110,10 +127,10 @@ export function createApp(options: CreateAppOptions = {}): FastifyInstance {
         : null;
     if (errorCode === "FST_ERR_CTP_BODY_TOO_LARGE") {
       state.outcome = "payload_too_large";
-      void reply.code(413).type("text/plain").send("payload too large");
+      void reply.code(413).type("text/plain").send(new PayloadTooLargeError().message);
       return;
     }
-    void reply.code(500).type("text/plain").send(internalError(state));
+    void reply.code(500).type("text/plain").send(new InternalError(state.requestId).message);
   });
 
   app.get("/health", (request, reply) => {
@@ -142,14 +159,15 @@ export function createApp(options: CreateAppOptions = {}): FastifyInstance {
       const contentLength = contentLengthHeader(request.headers["content-length"]);
       if (contentLength !== null && contentLength > settings.maxBodyBytes) {
         state.outcome = "payload_too_large";
-        return reply.code(413).type("text/plain").send("payload too large");
+        throw new PayloadTooLargeError();
       }
     },
     handler: async (request, reply) => {
       const state = requestState(request);
-      const rawText = requestText(request);
+      const contentType = headerValue(request.headers["content-type"]);
+      const rawText = requestText(request.body, contentType);
       state.bodyBytes = Buffer.byteLength(rawText, "utf8");
-      state.contentType = headerValue(request.headers["content-type"]) || null;
+      state.contentType = contentType;
       state.rawText = rawText;
       const receivedAt = DateTime.fromJSDate(now(), { zone: settings.localTz });
 
@@ -176,7 +194,7 @@ export function createApp(options: CreateAppOptions = {}): FastifyInstance {
         if (!recorded.ok) {
           return failInternal(reply, state);
         }
-        return reply.code(400).type("text/plain").send("not a Strong workout");
+        throw new UnparseableWorkoutError();
       }
 
       const workout = parseResult.value;
@@ -197,7 +215,7 @@ export function createApp(options: CreateAppOptions = {}): FastifyInstance {
         return reply
           .code(200)
           .type("text/plain")
-          .send(limitResponse(`already posted: ${displayUrl(existing.strava?.url)}`));
+          .send(alreadyPostedResponse(existing.strava?.url));
       }
 
       // A failed post keeps its record and attempt count, so sharing again retries
@@ -287,10 +305,7 @@ export function createApp(options: CreateAppOptions = {}): FastifyInstance {
           return failInternal(reply, state);
         }
         state.outcome = "strava_rejected";
-        return reply
-          .code(502)
-          .type("text/plain")
-          .send(limitResponse(`strava rejected: ${stravaReason(error)}`));
+        throw new StravaRejectedError(error);
       }
 
       const result = created.value;
@@ -311,100 +326,27 @@ export function createApp(options: CreateAppOptions = {}): FastifyInstance {
       }
 
       state.outcome = "posted";
-      return reply
-        .code(200)
-        .type("text/plain")
-        .send(limitResponse(`posted: ${activityText.title} · ${displayUrl(result.url)}`));
+      return reply.code(200).type("text/plain").send(postedResponse(activityText.title, result.url));
     },
   });
 
   return app;
 }
 
-function headerValue(value: string | string[] | undefined): string {
-  return typeof value === "string" ? value : "";
-}
-
-function contentLengthHeader(value: string | string[] | undefined): number | null {
-  const raw = headerValue(value);
-  if (!/^\d+$/.test(raw)) {
-    return null;
-  }
-  const parsed = Number(raw);
-  return Number.isSafeInteger(parsed) ? parsed : null;
-}
-
-function safeSecretEqual(supplied: string, expected: string): boolean {
-  const suppliedDigest = createHash("sha256").update(supplied, "utf8").digest();
-  const expectedDigest = createHash("sha256").update(expected, "utf8").digest();
-  return timingSafeEqual(suppliedDigest, expectedDigest);
-}
-
-function requestText(request: FastifyRequest): string {
-  const body = request.body;
-  if (typeof body !== "string") {
-    return "";
-  }
-  const contentType = headerValue(request.headers["content-type"]).toLowerCase();
-  if (!contentType.startsWith("application/json")) {
-    return body;
-  }
-  try {
-    const parsed: unknown = JSON.parse(body);
-    if (
-      typeof parsed === "object" &&
-      parsed !== null &&
-      "text" in parsed &&
-      typeof parsed.text === "string"
-    ) {
-      return parsed.text;
-    }
-  } catch {
-    // Constraint 6: an invalid JSON body is persisted as unparseable text, not rejected.
-  }
-  return body;
-}
-
-function rawTextHash(rawText: string): string {
-  return `sha256:${createHash("sha256")
-    .update(rawText, "utf8")
-    .digest("hex")
-    .slice(0, 32)}`;
-}
-
-function displayUrl(url: string | null | undefined): string {
-  if (url === null || url === undefined || url === "") {
-    return "Strava activity";
-  }
-  return url.replace(/^https:\/\/(?:www\.)?/, "");
-}
-
-function limitResponse(value: string): string {
-  return value.length <= MAX_RESPONSE_LENGTH ? value : value.slice(0, MAX_RESPONSE_LENGTH);
-}
-
-function secondsSince(startedAt: number): number {
-  return Math.round(Date.now() - startedAt) / 1000;
-}
-
-function stravaReason(error: unknown): string {
-  if (error instanceof Error && error.message !== "") {
-    return error.message.replace(/[\r\n]+/g, " ");
-  }
-  return "Strava request failed";
-}
-
-function internalError(state: RequestState): string {
-  return `internal error: ${state.requestId}`;
-}
-
-function failInternal(reply: FastifyReply, state: RequestState): FastifyReply {
+function failInternal(_reply: FastifyReply, state: RequestState): never {
   state.outcome = "internal_error";
-  return reply.code(500).type("text/plain").send(internalError(state));
+  throw new InternalError(state.requestId);
 }
 
 if (process.argv[1] !== undefined && fileURLToPath(import.meta.url) === process.argv[1]) {
-  const app = createApp();
+  const settings = loadSettings();
+  const app = createApp({
+    settings,
+    store: defaultStore(),
+    strava: defaultStravaClient(settings),
+    now: () => new Date(),
+    log: logRequest,
+  });
   void app.listen({
     host: "0.0.0.0",
     port: Number(process.env.PORT ?? 8080),
