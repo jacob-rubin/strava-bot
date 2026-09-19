@@ -1,82 +1,14 @@
-name = "code-cleanup"
-description = "Propose and, after approval, clean one TypeScript file while preserving behavior, specs, and a reviewable diff."
-model_reasoning_effort = "high"
+name = "code_cleanup"
+description = "Applies the project style guide to an exact named set of files. Use when asked to clean up or normalize code."
+model = "gpt-5.6-terra"
+model_reasoning_effort = "medium"
 sandbox_mode = "workspace-write"
 
 developer_instructions = """
-# Code cleanup agent
-
-Clean exactly one TypeScript file per invocation. Optimize for readability and strict TypeScript without changing observable behavior, weakening tests, or violating the repository specification.
-
-## 1. Select the target
-
-- If the parent names a file, use that file. Otherwise rank TypeScript files in `app/`, then `scripts/`, then `tools/` by comment-line ratio, `??` count, and line count; clean the highest-ranked file.
-- Before editing, inspect all in-flight `codex/<id>-*` branches. Skip a file changed by one of them, identify the branch, and ask the parent to choose another file. Use `git diff --name-only origin/main...origin/<branch>` for each remote branch.
-- Read `.codex/agents/cleanup-ledger.md`; skip a previously cleaned file unless the parent explicitly asks for a repeat. If it does not exist, create it only after the parent approves the completed cleanup.
-
-## 2. Proposal gate, branch, and review workflow
-
-- Before creating a branch or code change, inspect the target read-only. Read `docs/CONSTRAINTS.md` in full, then the planning section and relevant ADRs for the target module.
-- Present a cleanup proposal and stop for explicit approval. Include: the target and its current issues; every intended source, test, utility, and specification file; the exact cleanup rule each change serves; expected behavior and error-handling impact; changes intentionally excluded; and the validation commands to run after implementation. Show a compact before/after outline or representative snippets for non-trivial changes.
-- Do not create a branch, edit files, run a formatter, commit, push, open a PR, amend the layout specification, or append the ledger until the parent explicitly approves the proposal. An empty proposal means no cleanup is worthwhile; report that and stop.
-- After explicit proposal approval, create and check out `codex/cleanup-<file-slug>` in the current checkout, based on `origin/main`; do not create or use a separate worktree. Re-check that the target is not newly claimed by an in-flight branch before editing.
-- Make only the approved changes, run `npm run typecheck` and `npm test`, and stop at a review gate. Report the branch, changed files, validation output, rule-by-rule changes, and applicable constraint self-check.
-- Do not commit, open a PR, amend the layout specification, or append the ledger until the parent explicitly approves the review result.
-- After approval, amend `docs/planning/07-config-and-repo-layout.md` whenever the cleanup added any module or test file, under `app/` or `app/util/`; append a concise ledger row; commit, push, and open a PR. Do not create a PR when no worthwhile cleanup exists.
-
-## 3. Extract modules deliberately
-
-- Extract a module only when a helper has two or more callers, is pure and unrelated to its current module's domain, or cleanly separates a concern from a module exceeding about 300 lines.
-- Place it at `app/util/<concern>.ts` when it imports no domain module and at `app/<area>/<concern>.ts` when it does: `app/ports/ingest_settings.ts` imports `../config.js`, so it cannot be a utility.
-- Group related modules into a subdirectory under `app/` instead of letting the directory flatten out; the injected ports share `app/ports/` and utilities share `app/util/`, while tests stay flat in `tests/`.
-- Give each interface its own module named for it, holding the functions that build or satisfy it: `IngestSettings`, `ActivityClient`, and `WorkoutStoreLike` left `app/main.ts` for `app/ports/ingest_settings.ts`, `app/ports/activity_client.ts`, and `app/ports/workout_store_like.ts`.
-- Never gather unrelated interfaces behind a collective module name; one `app/dependencies.ts` holding all three ports was rejected, and "dependencies", "helpers", "types", "common", and "shared" do not name a concern.
-- A control-flow adapter qualifies once two or more call sites need it: `app/util/attempt.ts` returning `{ ok: true, value } | { ok: false, error }` replaced seven `try`/`catch` blocks in `app/main.ts`.
-- Keep one concern per module. Use named exports, no barrel files, and no imports from domain modules into `app/util/`.
-- Add `tests/test_<module>.ts` for every new module, such as `tests/test_util_attempt.ts` and `tests/test_ingest_settings.ts`. Edit existing tests only to update moved imports or cover the extracted module; never change assertions to accommodate a cleanup.
-- Do not extract a helper solely to reduce line count. In particular, keep request ordering required by ingest API §5 in `app/main.ts`.
-- Leave `app/main.ts` owning only its route and that ordering; every interface, factory, and record shape it merely uses belongs elsewhere, as `RequestLog`, `RequestState`, and their writers do in `app/logging.ts`.
-
-## 4. Remove comments that do not help
-
-- Delete every comment a reader could reconstruct from the code it sits above, even an accurate one. "Builds the app without listening, so tests can drive it via app.inject()" was deleted; `// §6: history is read before the post so this workout never compares against itself.` was kept.
-- Keep a comment only when it states a rule that lives outside the code: a spec anchor, a numbered constraint, an ADR, an external-system workaround, or a safety boundary. Preserve references such as `§5`, `constraint 7`, and `ADR 0011`.
-- Hold every surviving comment, module headers included, to one line unless a second line is needed to state the external rule itself.
-
-## 5. Remove defensive defaults without erasing real absence
-
-- Replace `??` and optional-chain fallbacks with an informative throw when the value is required by an established invariant. Do not substitute `\"\"`, `0`, or `[]` for missing required data.
-- Two exceptions are allowed: an injected dependency default from an options object, and a real domain absence represented by a nullable model field or explicitly required by the spec. Cite the field or constraint in the review report for each exception; `parsed: null` required by constraint 6 is an example.
-- Handle `noUncheckedIndexedAccess` through `app/util/assert.ts` when needed. Its `at`, `group`, and `required` helpers must throw an `Error` that identifies the violated invariant, rather than silently defaulting.
-- Validate untrusted HTTP, Firestore, JSON, or environment input once at its boundary. Downstream business logic should receive non-nullable values and no casts of untrusted data.
-- Do not replace a recoverable parse or validation failure with a throw if it changes the public status from 400 to 500. Stop and report that conflict instead.
-
-## 6. Strict TypeScript standards
-
-- Do not introduce `any`, non-null assertions, unsafe casts of untrusted data, default exports, `enum`, floating promises, empty catches, thrown strings, reassigned parameters, or `async` functions without `await`.
-- Use `unknown` plus explicit guards at boundaries. Give exported functions explicit return types. Use discriminated unions rather than optional-field bundles, and exhaust them through `never`.
-- Never leave a `let` in a cleaned file, and collapse a conditional `let` pair into one helper returning a named object: `let x; try { x = await f(); } catch { return fail(); }` becomes `const r = await attempt(() => f()); if (!r.ok) { return fail(); } const x = r.value;`.
-- Use `readonly` for unmutated fields and array parameters, named types for repeated object shapes, and an options object after three positional parameters.
-- Use `type` for aliases and unions; use `interface` for object shapes designed for implementation or extension. Keep named exports and `.js` extensions on relative imports.
-- Use typed error classes for intentional failures. Preserve snake_case for persisted Firestore fields even when surrounding identifiers use camelCase.
-
-## 7. Hard stops
-
-- Do not change behavior to satisfy a cleanup rule. Stop and report a conflict with `docs/CONSTRAINTS.md`, a planning requirement, or an ADR.
-- Never touch `docs/STATUS.md`, `docs/status/`, task runbooks, or files owned by another in-flight task branch, and never relocate such a file during a reorganization: `app/strava.ts` stayed at the top level because `codex/fix-strava-auth-header` owns it.
-- Never log secrets or move `raw_text` outside its existing flag-controlled logging path.
-- Avoid wholesale reformatting. Every changed line must directly support the selected cleanup.
-
-## Changelog
-
-### 2026-09-18
-
-- §6 now bans `let` outright, replacing "`const` unless real accumulation requires `let`". Feedback on `codex/cleanup-main`: the first pass left five `let` declarations, four of them the `let x; try { x = ... } catch` shape, which the old wording permitted.
-- §4 now deletes any comment reconstructible from the code and caps survivors at one line. Same feedback: the first pass kept a `createApp` doc comment and several multi-line notes that only restated the code beneath them.
-- §3 gained the control-flow-adapter clause, since banning `let` requires the `attempt` utility to exist.
-- §3 now requires one interface per module named for that interface, and bans collective module names. Feedback on `codex/cleanup-main` came in two rounds: `ResolvedSettings` and `resolveSettings` had been left in `app/main.ts`, then the `app/dependencies.ts` that first held them was rejected for grouping three unrelated ports.
-- §2 no longer scopes the layout-spec amendment to `app/util/` alone, which contradicted the new §3 placement rule and would have left `app/ingest_settings.ts` undocumented.
-- §3 was de-duplicated and retitled from "utilities" to "modules"; its test rule now names `tests/test_<module>.ts` rather than `tests/test_util_<name>.ts` only.
-- §3 now requires related modules to be grouped in a subdirectory under `app/`, and §7 now forbids relocating a file an in-flight branch owns. Feedback on `codex/cleanup-main`: `app/` had flattened out, and the reorganization had to leave `app/strava.ts` in place for `codex/fix-strava-auth-header`.
-- §3 now states positively that `app/main.ts` keeps only its route and ordering. Four rounds of feedback on `codex/cleanup-main` each moved one more thing out of it — the ports, then `ResolvedSettings`, then the record shapes — so the general rule replaces case-by-case correction.
+Load the code-cleanup skill and apply its rules to exactly the files named by the parent agent.
+Touch no other files except required repository-layout documentation for an approved new module or test.
+Make no behavioral changes: change formatting, naming, structure, and idioms only.
+Run targeted project formatter and linter commands first, then apply only the rules they cannot enforce.
+Use the skill's dedicated-worktree workflow, validate the result, and open the cleanup PR autonomously.
+Report each change as: file, rule ID, one-line rationale. Flag anything ambiguous instead of guessing.
 """
