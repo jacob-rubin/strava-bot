@@ -4,7 +4,6 @@ export interface IngestSettings {
   readonly localTz: string;
   readonly maxBodyBytes: number;
   readonly elapsedCapS: number;
-  readonly debugLogRawText: boolean;
   getIngestKey(): Promise<string>;
   getIngestPathToken(): Promise<string>;
 }
