@@ -11,14 +11,12 @@ import { readFileSync } from "node:fs";
 import type { FastifyInstance } from "fastify";
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  createApp,
-  type ActivityClient,
-  type IngestSettings,
-  type RequestLog,
-  type WorkoutStoreLike,
-} from "../app/main.js";
+import type { RequestLog } from "../app/logging.js";
+import { createApp, type CreateAppOptions } from "../app/main.js";
 import type { HistoryContext } from "../app/models.js";
+import type { ActivityClient } from "../app/ports/activity_client.js";
+import type { IngestSettings } from "../app/ports/ingest_settings.js";
+import type { WorkoutStoreLike } from "../app/ports/workout_store_like.js";
 import type {
   ReceivedWorkout,
   StoredWorkout,
@@ -159,13 +157,14 @@ function harness(overrides: {
   const settings = overrides.settings ?? new FakeSettings();
   const store = overrides.store ?? new FakeStore();
   const strava = overrides.strava ?? new FakeStrava();
-  const app = createApp({
+  const appOptions = {
     settings,
     store,
     strava,
     now: () => new Date("2026-09-09T07:43:00Z"),
     log: overrides.log ?? (() => undefined),
-  });
+  } satisfies CreateAppOptions;
+  const app = createApp(appOptions);
   return { app, store, strava, settings };
 }
 
