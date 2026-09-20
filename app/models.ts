@@ -1,23 +1,9 @@
-/**
- * Domain types shared by the parser, store, and activity-text formatter.
- *
- * Sources of truth:
- * - Set payload variants and parsing rules: docs/planning/02-input-contract.md (§3)
- * - Data model for activity text: docs/planning/04-persistence.md (§6)
- * - Activity text return shape: docs/planning/06-activity-text.md (§8)
- *
- * This module is intentionally types-only: no runtime imports, no Firestore, no
- * HTTP. Field names stay snake_case because `Workout` is persisted verbatim
- * under `workouts/{dedupe_key}.parsed` (§6).
- */
-
 /** Weight units Strong emits. Never normalized before §7.4 (§3 derived values). */
 export type WeightUnit = "lb" | "kg";
 
 /** Distance units Strong emits (§3 set payload variants). */
 export type DistanceUnit = "mi" | "km" | "m" | "ft";
 
-/** Discriminant for {@link WorkoutSet}; one member per §3 payload variant. */
 export type SetKind =
   | "weight_reps"
   | "assisted_reps"
@@ -27,23 +13,15 @@ export type SetKind =
   | "distance_time"
   | "unparsed";
 
-/** Fields every set carries regardless of payload variant. */
 interface WorkoutSetBase {
   /** Raw index token from `Set <index>:` — `"1"`, `"W"`, or any other token. */
   index: string;
-  /**
-   * Rule 8: an index beginning with `W` (case-insensitive) marks a warmup.
-   * Warmups stay in the parsed structure but are excluded from every total.
-   */
+  /** §3 rule 8: warmups remain parsed but are excluded from totals. */
   is_warmup: boolean;
-  /**
-   * `weight × reps`, and `0` when either is absent. Expressed in this set's own
-   * {@link WeightUnit}; do not normalize units here (§3 derived values).
-   */
+  /** §3 derived values: `weight × reps`, or `0` when either is absent; never normalize. */
   volume: number;
 }
 
-/** `315 lb × 4` */
 export interface WeightRepsSet extends WorkoutSetBase {
   kind: "weight_reps";
   weight: number;
@@ -54,13 +32,9 @@ export interface WeightRepsSet extends WorkoutSetBase {
   distance_unit: null;
 }
 
-/** `+25 lb × 8`, `-40 lb × 10` */
 export interface AssistedRepsSet extends WorkoutSetBase {
   kind: "assisted_reps";
-  /**
-   * Signed load. Negative means machine assistance, positive means added
-   * weight; the sign is preserved verbatim (§3).
-   */
+  /** §3: preserve the signed load; negative means machine assistance. */
   weight: number;
   unit: WeightUnit;
   reps: number;
@@ -69,7 +43,6 @@ export interface AssistedRepsSet extends WorkoutSetBase {
   distance_unit: null;
 }
 
-/** `12 reps` — bodyweight, no load recorded. */
 export interface RepsSet extends WorkoutSetBase {
   kind: "reps";
   weight: null;
@@ -80,7 +53,6 @@ export interface RepsSet extends WorkoutSetBase {
   distance_unit: null;
 }
 
-/** `1:30` (`M:SS`) or `1:02:30` (`H:MM:SS`), normalized to seconds. */
 export interface TimeSet extends WorkoutSetBase {
   kind: "time";
   weight: null;
@@ -91,7 +63,6 @@ export interface TimeSet extends WorkoutSetBase {
   distance_unit: null;
 }
 
-/** `1.5 mi` */
 export interface DistanceSet extends WorkoutSetBase {
   kind: "distance";
   weight: null;
@@ -102,7 +73,6 @@ export interface DistanceSet extends WorkoutSetBase {
   distance_unit: DistanceUnit;
 }
 
-/** `0.25 mi in 3:10` */
 export interface DistanceTimeSet extends WorkoutSetBase {
   kind: "distance_time";
   weight: null;
@@ -113,14 +83,9 @@ export interface DistanceTimeSet extends WorkoutSetBase {
   distance_unit: DistanceUnit;
 }
 
-/**
- * Anything the parser does not recognize. Constraint 5 and parsing rule 9: an
- * unrecognized payload is a first-class kind retaining its raw text, never an
- * error and never a dropped line.
- */
+/** Constraint 5 and §3 rule 9: retain unrecognized payloads; never drop a line. */
 export interface UnparsedSet extends WorkoutSetBase {
   kind: "unparsed";
-  /** The set payload exactly as it appeared, minus the `Set <index>: ` prefix. */
   raw: string;
   weight: null;
   unit: null;
@@ -130,7 +95,6 @@ export interface UnparsedSet extends WorkoutSetBase {
   distance_unit: null;
 }
 
-/** One set line, discriminated by {@link SetKind} (§3 set payload variants). */
 export type WorkoutSet =
   | WeightRepsSet
   | AssistedRepsSet
@@ -140,29 +104,24 @@ export type WorkoutSet =
   | DistanceTimeSet
   | UnparsedSet;
 
-/** One exercise block: an exercise line plus the set lines beneath it. */
 export interface Exercise {
-  /** Base name with any trailing equipment parenthetical stripped (rule 7). */
+  /** §3 rule 7: base name with trailing equipment parenthetical stripped. */
   name: string;
-  /** `Deadlift (Barbell)` → `"Barbell"`; absent parentheses → `null` (rule 7). */
+  /** §3 rule 7: absent equipment parentheses are `null`. */
   equipment: string | null;
-  /** Working and warmup sets, in the order they appeared. */
   sets: WorkoutSet[];
 }
 
-/**
- * Parser output for one share text. Persisted as-is under
- * `workouts/{dedupe_key}.parsed` (§6).
- */
+/** §6: persisted verbatim under `workouts/{dedupe_key}.parsed`. */
 export interface Workout {
-  /** Line 1 of the share text (`title_line`, §3). */
+  /** §3 `title_line`. */
   workout_name: string;
-  /** Line 2 as naive local ISO-8601 with no offset, e.g. `"2026-09-09T06:43:00"`. */
+  /** §3: naive local ISO-8601, with no offset. */
   started_at: string;
   exercises: Exercise[];
-  /** `slug` from `https://link.strong.app/<slug>` (rule 5); `null` when absent. */
+  /** §3 rule 5: Strong share slug, or `null` when absent. */
   share_slug: string | null;
-  /** Non-fatal parse notes, e.g. rule 3's set line before any exercise line. */
+  /** §3 rule 3: non-fatal parse notes. */
   warnings: string[];
 }
 
@@ -202,5 +161,4 @@ export interface ExerciseHistory {
   volume_trend: "up" | "down" | "flat" | null; // null when <2 data points
 }
 
-/** Return shape of the deterministic formatter in §8. */
 export type ActivityText = { title: string; description: string };

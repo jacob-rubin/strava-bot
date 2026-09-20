@@ -6,7 +6,3 @@ export function rawTextHash(rawText: string): string {
     .digest("hex")
     .slice(0, 32)}`;
 }
-
-export function secondsSince(startedAt: number): number {
-  return Math.round(Date.now() - startedAt) / 1000;
-}

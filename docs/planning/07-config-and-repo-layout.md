@@ -1,6 +1,6 @@
 ---
 status: authoritative
-last-updated: 2026-09-19
+last-updated: 2026-09-20
 ---
 
 ← [Index](../PLANNING.md)
@@ -29,6 +29,7 @@ The service needs `roles/secretmanager.secretAccessor` and, for refresh-token ro
 strava-bot/
   app/
     main.ts                 # Fastify server, routes, processing order (§5)
+    server.ts               # process entrypoint: loads settings, builds and boots the app
     logging.ts              # RequestLog record, per-request state, log writers (§11)
     parser.ts               # Strong share-text parser
     models.ts               # Workout, Exercise, WorkoutSet, summaries
@@ -36,6 +37,14 @@ strava-bot/
     activity_text.ts        # deterministic title + description formatter
     strava.ts               # tokens, createActivity, uploadStructured
     config.ts               # env + Secret Manager
+    ingest/                 # named steps and helpers for the §5 ingest sequence
+      error.ts              # HTTP-facing ingest error types
+      request_text.ts       # content-type-aware request body extraction
+      response_text.ts      # success response text
+      required_store.ts     # required Firestore operations and failure mapping
+      parse_stage.ts        # parse or persist the raw-only failure record
+      workout_timing.ts     # local/UTC start time and elapsed duration
+      post_stage.ts         # Strava post and terminal result persistence
     ports/                  # injected collaborators, one interface per module
       ingest_settings.ts    # IngestSettings + resolveSettings
       activity_client.ts    # ActivityClient + Strava and unavailable factories
@@ -58,6 +67,10 @@ strava-bot/
     test_logging.ts
     test_ingest_settings.ts
     test_activity_client.ts
+    test_required_store.ts
+    test_parse_stage.ts
+    test_workout_timing.ts
+    test_post_stage.ts
     test_util_attempt.ts
   terraform/
     main.tf                 # project, APIs, Firestore, secrets, IAM, Cloud Build trigger, budget (§5, ADR 0007)
@@ -80,8 +93,8 @@ Runtime dependencies are `fastify`, `@google-cloud/firestore`, `@google-cloud/se
 | `build`     | `tsc -p tsconfig.json`                       |
 | `typecheck` | `tsc -p tsconfig.json --noEmit`              |
 | `test`      | `vitest run`                                |
-| `dev`       | `tsx app/main.ts`                            |
-| `start`     | `node --enable-source-maps dist/app/main.js` |
+| `dev`       | `tsx app/server.ts`                          |
+| `start`     | `node --enable-source-maps dist/app/server.js` |
 | `status`    | `node tools/status.ts next`                  |
 | `status:write` | `node tools/status.ts write`              |
 | `status:check` | `node tools/status.ts check`              |

@@ -336,7 +336,7 @@ async function probeFieldName(
 async function main(): Promise<void> {
   loadEnvFile();
   const settings = loadSettings();
-  // Same Settings-to-StravaSettings adapter as app/main.ts: reusing the client
+  // Same Settings-to-StravaSettings adapter as app/server.ts: reusing the client
   // gets token caching and rotated-refresh-token persistence (rule 8) for free.
   const stravaSettings: StravaSettings = {
     getStravaClientId: async () => settings.stravaClientId,

@@ -9,7 +9,6 @@ const injected: IngestSettings = {
   localTz: "America/Chicago",
   maxBodyBytes: 65536,
   elapsedCapS: 14400,
-  debugLogRawText: false,
   getIngestKey: async () => "key",
   getIngestPathToken: async () => "token",
 };

@@ -4,14 +4,14 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": "26.x"
+    "node": "24.x"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "dev": "tsx app/main.ts",
-    "start": "node --enable-source-maps dist/app/main.js",
+    "dev": "tsx app/server.ts",
+    "start": "node --enable-source-maps dist/app/server.js",
     "status": "node tools/status.ts next",
     "status:write": "node tools/status.ts write",
     "status:check": "node tools/status.ts check",

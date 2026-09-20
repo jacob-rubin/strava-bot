@@ -1,19 +1,3 @@
-/**
- * Firestore read/write for the `workouts` and `history` collections (§6).
- *
- * This module owns the `workouts/{dedupe_key}` document shape, the two
- * idempotency lookups §6 requires before any Strava activity is created, and
- * the `history/{exercise_name}` documents written after a successful post:
- *
- *   1. `workouts/{dedupe_key}` by document id, then
- *   2. a query for an existing document with the same `content_hash`.
- *
- * `history` is written only from `recordResult` after the Strava post
- * succeeds, so a failed post never advances a personal best (§6). It never
- * logs `raw_text` (constraint 7). Firestore errors propagate untouched so the
- * ingest route can map them to a 500 (constraint 11 / error handling §11).
- */
-
 import {
   Timestamp,
   type DocumentReference,
@@ -38,15 +22,13 @@ const HISTORY_COLLECTION = "history";
 
 export type WorkoutStatus = "received" | "posted" | "failed";
 
-/** §6 `strava` field: the creation path that posted the activity, or null. */
 export interface StravaRecord {
-  activity_id: string | null;
-  upload_id: string | null;
-  url: string | null;
-  method: string | null;
+  readonly activity_id: string | null;
+  readonly upload_id: string | null;
+  readonly url: string | null;
+  readonly method: string | null;
 }
 
-/** A document read back from `workouts/{dedupe_key}`. */
 export interface StoredWorkout {
   dedupe_key: string;
   content_hash: string;
@@ -63,56 +45,52 @@ export interface StoredWorkout {
   attempts: number;
 }
 
-/** Everything the store needs for the §6 initial write. */
 export interface ReceivedWorkout {
-  dedupe_key: string;
-  content_hash: string;
-  raw_text: string;
-  parsed: Workout | null;
-  started_at: Timestamp | null;
-  elapsed_s: number | null;
-  received_at: Timestamp;
+  readonly dedupe_key: string;
+  readonly content_hash: string;
+  readonly raw_text: string;
+  readonly parsed: Workout | null;
+  readonly started_at: Timestamp | null;
+  readonly elapsed_s: number | null;
+  readonly received_at: Timestamp;
 }
 
-/** Terminal outcome written after the Strava call (success or failure). */
 export interface WorkoutResult {
-  status: Exclude<WorkoutStatus, "received">;
-  strava: StravaRecord | null;
-  error: string | null;
+  readonly status: Exclude<WorkoutStatus, "received">;
+  readonly strava: StravaRecord | null;
+  readonly error: string | null;
 }
 
 /** One entry in {@link StoredExerciseHistory.recent}; the last 10 only (§6). */
 export interface HistoryRecentEntry {
-  date: Timestamp;
-  top_set: TopSet | null;
-  volume: number;
+  readonly date: Timestamp;
+  readonly top_set: TopSet | null;
+  readonly volume: number;
 }
 
 /** A `history/{exercise_name}` document read back from Firestore (§6). */
 export interface StoredExerciseHistory {
-  exercise_name: string;
-  best_e1rm: number | null;
-  best_top_set: TopSet | null;
-  last_performed: Timestamp;
-  recent: HistoryRecentEntry[];
+  readonly exercise_name: string;
+  readonly best_e1rm: number | null;
+  readonly best_top_set: TopSet | null;
+  readonly last_performed: Timestamp;
+  readonly recent: readonly HistoryRecentEntry[];
 }
 
 // --- Firestore seam ---------------------------------------------------------
 
-/** Snapshot of one `workouts` document. */
 export interface WorkoutDocumentSnapshot {
   readonly exists: boolean;
   data(): Record<string, unknown> | undefined;
 }
 
-/** Snapshot of a `workouts` document that matched a query (always exists). */
 export interface WorkoutQueryDocumentSnapshot {
   data(): Record<string, unknown>;
 }
 
 export interface WorkoutQuerySnapshot {
   readonly empty: boolean;
-  readonly docs: WorkoutQueryDocumentSnapshot[];
+  readonly docs: readonly WorkoutQueryDocumentSnapshot[];
 }
 
 export interface WorkoutDocumentReference {
@@ -131,7 +109,6 @@ export interface WorkoutCollectionReference {
   where(fieldPath: string, opStr: "==", value: string): WorkoutQuery;
 }
 
-/** Minimal Firestore surface used by {@link WorkoutStore}. */
 export interface WorkoutFirestore {
   collection(collectionPath: string): WorkoutCollectionReference;
 }
@@ -169,7 +146,12 @@ export class WorkoutStore {
     }
 
     const first = results.docs[0];
-    return first === undefined ? null : toStoredWorkout(first.data());
+    if (first === undefined) {
+      throw new Error(
+        "content_hash query reported non-empty but returned no documents",
+      );
+    }
+    return toStoredWorkout(first.data());
   }
 
   /**
@@ -201,16 +183,17 @@ export class WorkoutStore {
    * background retry queue, and the §6 idempotency record is already durable
    * before the Strava call, so no two flows race on the same document.
    */
-  async recordResult(
-    dedupeKey: string,
-    result: WorkoutResult,
-  ): Promise<void> {
+  async recordResult(dedupeKey: string, result: WorkoutResult): Promise<void> {
     const reference = this.#workouts.doc(dedupeKey);
     const snapshot = await reference.get();
     const data = snapshot.exists ? snapshot.data() : undefined;
     const currentAttempts = data?.["attempts"];
-    const attempts =
-      typeof currentAttempts === "number" ? currentAttempts + 1 : 1;
+    if (typeof currentAttempts !== "number") {
+      throw new Error(
+        `workouts document "${dedupeKey}" is missing the required numeric field "attempts" (§6); the idempotency record is corrupt or absent`,
+      );
+    }
+    const attempts = currentAttempts + 1;
 
     await reference.update({
       status: result.status,
@@ -226,7 +209,7 @@ export class WorkoutStore {
     }
 
     const parsed = (data?.["parsed"] ?? null) as Workout | null;
-    const startedAt = (data?.["started_at"] ?? null) as Timestamp | null;
+    const startedAt = asNullableTimestamp(data?.["started_at"], "started_at");
     if (parsed === null || startedAt === null) {
       return;
     }
@@ -262,9 +245,13 @@ export class WorkoutStore {
     summary: WorkoutSummary,
     startedAt: Timestamp,
   ): Promise<HistoryContext> {
-    const names = [...new Set(summary.exercises.map((exercise) => exercise.name))];
+    const names = [
+      ...new Set(summary.exercises.map((exercise) => exercise.name)),
+    ];
     const entries = await Promise.all(
-      names.map(async (name) => [name, await this.getExerciseHistory(name)] as const),
+      names.map(
+        async (name) => [name, await this.getExerciseHistory(name)] as const,
+      ),
     );
     return buildHistoryContext(summary, new Map(entries), startedAt);
   }
@@ -337,19 +324,17 @@ export function estimateE1rm(weight: number, reps: number): number | null {
   return weight * (1 + reps / 30);
 }
 
-/** Highest {@link estimateE1rm} across an exercise's working sets. */
-function bestE1rm(sets: WorkoutSet[]): number | null {
-  let best: number | null = null;
-  for (const set of sets) {
+function bestE1rm(sets: readonly WorkoutSet[]): number | null {
+  return sets.reduce<number | null>((best, set) => {
     if (set.is_warmup || set.weight === null || set.reps === null) {
-      continue;
+      return best;
     }
     const estimate = estimateE1rm(set.weight, set.reps);
     if (estimate !== null && (best === null || estimate > best)) {
-      best = estimate;
+      return estimate;
     }
-  }
-  return best;
+    return best;
+  }, null);
 }
 
 /** Lexicographic `(weight, reps)` max for §6 `best_top_set` (§3 top-set rule). */
@@ -393,17 +378,22 @@ function daysSince(lastPerformed: Timestamp, startedAt: Timestamp): number {
  * from the oldest to the newest volume in the rolling `recent` window.
  */
 function volumeTrend(
-  recent: HistoryRecentEntry[],
+  recent: readonly HistoryRecentEntry[],
 ): ExerciseHistory["volume_trend"] {
   if (recent.length < 2) {
     return null;
   }
-  const first = recent[0]?.volume ?? 0;
-  const last = recent[recent.length - 1]?.volume ?? 0;
-  if (last > first) {
+  const first = recent[0];
+  const last = recent[recent.length - 1];
+  if (first === undefined || last === undefined) {
+    throw new Error(
+      "volume trend needs the two entries the length check guarantees",
+    );
+  }
+  if (last.volume > first.volume) {
     return "up";
   }
-  if (last < first) {
+  if (last.volume < first.volume) {
     return "down";
   }
   return "flat";
@@ -458,7 +448,6 @@ export function buildHistoryContext(
 
 // --- Real-client adapter -----------------------------------------------------
 
-/** Adapt a real `@google-cloud/firestore` client to the {@link WorkoutFirestore} seam. */
 export function firestoreWorkouts(db: Firestore): WorkoutFirestore {
   return {
     collection: (collectionPath) => {
@@ -513,19 +502,19 @@ function toQuery(query: Query): WorkoutQuery {
 
 function toStoredWorkout(data: Record<string, unknown>): StoredWorkout {
   return {
-    dedupe_key: asString(data["dedupe_key"]),
-    content_hash: asString(data["content_hash"]),
-    raw_text: asString(data["raw_text"]),
+    dedupe_key: asString(data["dedupe_key"], "dedupe_key"),
+    content_hash: asString(data["content_hash"], "content_hash"),
+    raw_text: asString(data["raw_text"], "raw_text"),
     parsed: (data["parsed"] ?? null) as Workout | null,
-    started_at: (data["started_at"] ?? null) as Timestamp | null,
+    started_at: asNullableTimestamp(data["started_at"], "started_at"),
     elapsed_s: asNullableNumber(data["elapsed_s"]),
-    received_at: data["received_at"] as Timestamp,
+    received_at: asTimestamp(data["received_at"], "received_at"),
     title: asNullableString(data["title"]),
     description: asNullableString(data["description"]),
     strava: (data["strava"] ?? null) as StravaRecord | null,
     status: asStatus(data["status"]),
     error: asNullableString(data["error"]),
-    attempts: asNumber(data["attempts"]),
+    attempts: asNumber(data["attempts"], "attempts"),
   };
 }
 
@@ -533,10 +522,10 @@ function toStoredExerciseHistory(
   data: Record<string, unknown>,
 ): StoredExerciseHistory {
   return {
-    exercise_name: asString(data["exercise_name"]),
+    exercise_name: asString(data["exercise_name"], "exercise_name"),
     best_e1rm: asNullableNumber(data["best_e1rm"]),
     best_top_set: asNullableTopSet(data["best_top_set"]),
-    last_performed: data["last_performed"] as Timestamp,
+    last_performed: asTimestamp(data["last_performed"], "last_performed"),
     recent: asRecentEntries(data["recent"]),
   };
 }
@@ -561,37 +550,45 @@ function asNullableTopSet(value: unknown): TopSet | null {
 
 function asRecentEntries(value: unknown): HistoryRecentEntry[] {
   if (!Array.isArray(value)) {
-    return [];
+    throw new Error(
+      `stored history document is missing required array field "recent"`,
+    );
   }
-  const entries: HistoryRecentEntry[] = [];
-  for (const entry of value) {
+  return value.map((entry) => {
     if (entry === null || typeof entry !== "object") {
-      continue;
+      throw new Error(
+        `stored history document has a malformed entry in "recent"`,
+      );
     }
     const record = entry as Record<string, unknown>;
-    const date = record["date"];
-    if (!(date instanceof Timestamp)) {
-      continue;
-    }
-    entries.push({
-      date,
+    return {
+      date: asTimestamp(record["date"], "recent.date"),
       top_set: asNullableTopSet(record["top_set"]),
-      volume: asNumber(record["volume"]),
-    });
-  }
-  return entries;
+      volume: asNumber(record["volume"], "recent.volume"),
+    };
+  });
 }
 
-function asString(value: unknown): string {
-  return typeof value === "string" ? value : "";
+function asString(value: unknown, field: string): string {
+  if (typeof value !== "string") {
+    throw new Error(
+      `stored document is missing required string field "${field}"`,
+    );
+  }
+  return value;
 }
 
 function asNullableString(value: unknown): string | null {
   return typeof value === "string" ? value : null;
 }
 
-function asNumber(value: unknown): number {
-  return typeof value === "number" ? value : 0;
+function asNumber(value: unknown, field: string): number {
+  if (typeof value !== "number") {
+    throw new Error(
+      `stored document is missing required numeric field "${field}"`,
+    );
+  }
+  return value;
 }
 
 function asNullableNumber(value: unknown): number | null {
@@ -599,5 +596,26 @@ function asNullableNumber(value: unknown): number | null {
 }
 
 function asStatus(value: unknown): WorkoutStatus {
-  return value === "posted" || value === "failed" ? value : "received";
+  if (value === "received" || value === "posted" || value === "failed") {
+    return value;
+  }
+  throw new Error(
+    `stored document has an unknown value in required field "status"`,
+  );
+}
+
+function asTimestamp(value: unknown, field: string): Timestamp {
+  if (!(value instanceof Timestamp)) {
+    throw new Error(
+      `stored document is missing required timestamp field "${field}"`,
+    );
+  }
+  return value;
+}
+
+function asNullableTimestamp(value: unknown, field: string): Timestamp | null {
+  if (value === null) {
+    return null;
+  }
+  return asTimestamp(value, field);
 }
