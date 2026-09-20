@@ -18,6 +18,7 @@ The service is built, deployed, and in use. These documents describe what it doe
 | [reference/strava.md](reference/strava.md) | OAuth and token rotation, creating activities, structured uploads, policy, rate limits. |
 | [reference/activity-text.md](reference/activity-text.md) | The deterministic title and description formatter. |
 | [reference/configuration.md](reference/configuration.md) | Environment variables, secrets, repository layout, toolchain. |
+| [reference/style-rules.md](reference/style-rules.md) | TypeScript style rules for new and changed code, applied by `code-cleanup`. |
 | [decisions/](decisions/README.md) | ADRs — why a choice was made, kept separately from what the code does. |
 
 ## Scope
