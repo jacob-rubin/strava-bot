@@ -5,11 +5,11 @@ description: Clean up an exact named set of TypeScript files using this reposito
 
 # Code cleanup
 
-Apply the repository style guide in `docs/reference/style-rules.md` to the exact files the parent names. The parent must provide at least one repository-relative TypeScript path. Do not select targets, broaden the file list, or edit a file another in-flight branch owns. A style rule never authorizes expanding the parent-provided file set: report a required companion file and stop instead.
+Apply the repository style guide in `docs/reference/style-rules.md` to the exact files the parent names. The parent must provide at least one repository-relative TypeScript path. Do not select targets or broaden the file list. A style rule never authorizes expanding the parent-provided file set: report a required companion file and stop instead.
 
 ## Workflow
 
-1. Fetch `origin --prune`. Confirm every target exists, is TypeScript, and is absent from the diff of every in-flight `origin/codex/*` branch. If any check fails, report it and stop.
+1. Confirm every target exists and is TypeScript. If either check fails, report it and stop.
 2. Edit in place in the current checkout, on whatever branch it already has. Do not create a branch or a worktree, do not switch branches, and do not stage, commit, push, or open a pull request. If a target already carries uncommitted changes, say so before editing so the cleanup stays separable from work in progress.
 3. Read the full style guide. For source changes, read `docs/CONSTRAINTS.md`, the relevant planning section, and applicable ADRs before editing.
 4. Discover the repository's formatter and linter commands. Run them only against the named files when their interfaces allow it; never run a repository-wide write command. If targeted automatic fixing is unavailable, run their check-only forms and make mechanical changes manually. Do not add or configure a linter as part of a cleanup.
