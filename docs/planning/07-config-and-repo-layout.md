@@ -1,6 +1,6 @@
 ---
 status: authoritative
-last-updated: 2026-09-19
+last-updated: 2026-09-20
 ---
 
 ← [Index](../PLANNING.md)
@@ -29,6 +29,7 @@ The service needs `roles/secretmanager.secretAccessor` and, for refresh-token ro
 strava-bot/
   app/
     main.ts                 # Fastify server, routes, processing order (§5)
+    server.ts               # process entrypoint: loads settings, builds and boots the app
     logging.ts              # RequestLog record, per-request state, log writers (§11)
     parser.ts               # Strong share-text parser
     models.ts               # Workout, Exercise, WorkoutSet, summaries
@@ -92,8 +93,8 @@ Runtime dependencies are `fastify`, `@google-cloud/firestore`, `@google-cloud/se
 | `build`     | `tsc -p tsconfig.json`                       |
 | `typecheck` | `tsc -p tsconfig.json --noEmit`              |
 | `test`      | `vitest run`                                |
-| `dev`       | `tsx app/main.ts`                            |
-| `start`     | `node --enable-source-maps dist/app/main.js` |
+| `dev`       | `tsx app/server.ts`                          |
+| `start`     | `node --enable-source-maps dist/app/server.js` |
 | `status`    | `node tools/status.ts next`                  |
 | `status:write` | `node tools/status.ts write`              |
 | `status:check` | `node tools/status.ts check`              |

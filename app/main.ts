@@ -1,39 +1,25 @@
-/** Strong-to-Strava ingest entrypoint. The request ordering here is fixed by §5. */
-
-import { fileURLToPath } from "node:url";
+/** Strong-to-Strava ingest app: Fastify routes and the fixed §5 processing order. */
 
 import { Timestamp } from "@google-cloud/firestore";
 import Fastify, { type FastifyInstance } from "fastify";
 import { DateTime } from "luxon";
 
 import { formatActivityText } from "./activity_text.js";
-import { loadSettings } from "./config.js";
 import {
   alreadyPostedResponse,
   postedResponse,
 } from "./ingest/response_text.js";
-import {
-  IngestError,
-  InternalError,
-  PayloadTooLargeError,
-} from "./ingest/error.js";
+import { ingestFailure, PayloadTooLargeError } from "./ingest/error.js";
 import { parseWorkoutOrRecordRaw } from "./ingest/parse_stage.js";
 import { postWorkoutActivity } from "./ingest/post_stage.js";
 import { requiredStore } from "./ingest/required_store.js";
 import { requestText } from "./ingest/request_text.js";
 import { deriveWorkoutTiming } from "./ingest/workout_timing.js";
-import { logRequest, type RequestLog } from "./logging.js";
-import {
-  contentHash,
-  dedupeKey,
-  summarizeWorkout,
-} from "./parser.js";
-import {
-  defaultStravaClient,
-  type ActivityClient,
-} from "./ports/activity_client.js";
+import type { RequestLog } from "./logging.js";
+import { contentHash, dedupeKey, summarizeWorkout } from "./parser.js";
+import type { ActivityClient } from "./ports/activity_client.js";
 import type { IngestSettings } from "./ports/ingest_settings.js";
-import { defaultStore, type WorkoutStoreLike } from "./ports/workout_store_like.js";
+import type { WorkoutStoreLike } from "./ports/workout_store_like.js";
 import { contentLengthHeader, headerValue } from "./util/http_headers.js";
 import { safeSecretEqual } from "./util/secret_comparison.js";
 
@@ -69,7 +55,10 @@ export function createApp({
 
   app.setErrorHandler((error, _request, reply) => {
     const failure = ingestFailure(error);
-    void reply.code(failure.statusCode).type("text/plain").send(failure.message);
+    void reply
+      .code(failure.statusCode)
+      .type("text/plain")
+      .send(failure.message);
   });
 
   app.get("/health", (_request, reply) => {
@@ -190,38 +179,4 @@ export function createApp({
   });
 
   return app;
-}
-
-/** Fastify's body-limit rejection is the one failure that arrives untyped. */
-function ingestFailure(error: unknown): IngestError {
-  if (error instanceof IngestError) {
-    return error;
-  }
-  const errorCode =
-    error instanceof Error && "code" in error && typeof error.code === "string"
-      ? error.code
-      : null;
-  return errorCode === "FST_ERR_CTP_BODY_TOO_LARGE"
-    ? new PayloadTooLargeError()
-    : new InternalError();
-}
-
-if (
-  process.argv[1] !== undefined &&
-  fileURLToPath(import.meta.url) === process.argv[1]
-) {
-  const settings = loadSettings();
-  const app = createApp({
-    settings,
-    store: defaultStore(),
-    strava: defaultStravaClient(settings),
-    log: logRequest,
-  });
-  void app.listen({
-    host: "0.0.0.0",
-    port: Number(process.env.PORT ?? 8080),
-  }).catch((error: unknown) => {
-    console.error(error);
-    process.exitCode = 1;
-  });
 }

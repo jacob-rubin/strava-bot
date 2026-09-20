@@ -119,10 +119,10 @@ export class SecretManagerSecretAccessor {
   }
 }
 
-export interface SettingsOptions {
+export type SettingsOptions = {
   env?: NodeJS.ProcessEnv;
   secretClient?: SecretManagerClient;
-}
+};
 
 export class Settings {
   readonly stravaClientId: string;

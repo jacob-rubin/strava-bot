@@ -1,11 +1,3 @@
-/**
- * §5 step 3: parse, or persist the unparseable payload and reject it.
- *
- * Constraint 6 is why the failure path writes before it throws — a 400 still
- * has to leave a document carrying `raw_text`, or the parser can never be
- * fixed and the workout re-parsed.
- */
-
 import { Timestamp } from "@google-cloud/firestore";
 import type { DateTime } from "luxon";
 
@@ -36,6 +28,7 @@ export async function parseWorkoutOrRecordRaw({
   }
 
   const parseFailureKey = rawTextHash(rawText);
+  // Constraint 6: persist before rejecting so a fixed parser can re-parse.
   await store.recordReceived({
     dedupe_key: parseFailureKey,
     content_hash: parseFailureKey,

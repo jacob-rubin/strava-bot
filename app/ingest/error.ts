@@ -39,6 +39,20 @@ export class InternalError extends IngestError {
   }
 }
 
+/** Fastify's body-limit rejection is the one failure that arrives untyped. */
+export function ingestFailure(error: unknown): IngestError {
+  if (error instanceof IngestError) {
+    return error;
+  }
+  const errorCode =
+    error instanceof Error && "code" in error && typeof error.code === "string"
+      ? error.code
+      : null;
+  return errorCode === "FST_ERR_CTP_BODY_TOO_LARGE"
+    ? new PayloadTooLargeError()
+    : new InternalError();
+}
+
 export function stravaReason(error: unknown): string {
   if (error instanceof Error && error.message !== "") {
     return error.message.replace(/[\r\n]+/g, " ");
