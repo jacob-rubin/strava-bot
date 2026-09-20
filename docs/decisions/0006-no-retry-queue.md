@@ -3,7 +3,7 @@ status: authoritative
 last-updated: 2026-09-14
 ---
 
-← [Decisions](README.md) · [Index](../PLANNING.md)
+← [Decisions](README.md) · [Docs index](../README.md)
 
 # 0006 — No background retry queue
 
@@ -13,4 +13,4 @@ last-updated: 2026-09-14
 
 **Consequences.** Simpler service, no queue infrastructure, no retry-storm risk. This is only sound because volume is ~5 requests/week and the user is present and able to retry immediately — it would not generalize to a multi-user or unattended system.
 
-→ [Error handling §11](../planning/08-error-handling.md)
+→ [Error handling](../reference/ingest-api.md#error-handling)

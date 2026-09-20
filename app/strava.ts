@@ -225,7 +225,7 @@ function structuredSetPayload(
   return payload;
 }
 
-/** T25 requires source-ordered set times that are monotonic and in range. */
+/** Strava requires source-ordered set times, monotonic and in range. */
 function buildStructuredFile(
   activity: CreateActivityInput,
   workout: StructuredWorkoutInput,
@@ -465,7 +465,7 @@ export class StravaClient {
       try {
         return await this.uploadStructured(activity, structuredWorkout);
       } catch {
-        // §7.4: a structured failure falls back in the same request.
+        // docs/reference/strava.md: a structured failure falls back in the same request.
         this.#log("strava structured-upload fallback=create-activity");
       }
     }

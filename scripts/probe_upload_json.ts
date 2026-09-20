@@ -8,9 +8,9 @@ import { loadSettings } from "../app/config.js";
 import { StravaClient, type StravaSettings } from "../app/strava.js";
 
 /**
- * One-shot probe for open item 3 (docs/planning/11-open-items-and-sources.md):
+ * One-shot probe for the structured-upload field name and JSON support:
  * does POST /uploads accept a JSON strength-training file, and is the
- * multipart field named 'data_type' or 'dataType'? Both are [U] in §7.4.
+ * multipart field named 'data_type' or 'dataType'? See docs/reference/strava.md.
  *
  * The probe posts one minimal JSON set body per candidate field name, polls
  * GET /uploads/{id} to a terminal state, deletes any activity it creates, and
@@ -93,7 +93,7 @@ async function parseBody(response: Response): Promise<unknown> {
  * The JSON body posted as the upload file. The envelope and set fields follow
  * the 'JSON - Strength Training (Limited)' section of Strava's uploads
  * documentation — note that its set objects use 'exercise_type', not the
- * 'set_type'/'category' field names §7.4 lists from the FIT set message and
+ * 'set_type'/'category' field names documented for the FIT set message and
  * the changelog summary. Each call embeds the current time so the two
  * attempts upload distinct files and cannot dedupe against each other.
  */
@@ -105,7 +105,7 @@ function buildProbeFile(): string {
     start_time: startIso,
     utc_offset: utcOffsetSeconds,
     elapsed_time: PROBE_ELAPSED_TIME_S,
-    creator: { name: "strava-bot t25 probe" },
+    creator: { name: "strava-bot upload probe" },
     sets: [
       {
         exercise_type: PROBE_EXERCISE_TYPE,
@@ -125,12 +125,12 @@ function buildForm(fieldName: FieldName): FormData {
     "probe.json",
   );
   form.append(fieldName, "json");
-  form.append("name", "strava-bot T25 probe (" + fieldName + ")");
+  form.append("name", "strava-bot upload probe (" + fieldName + ")");
   form.append(
     "description",
     "One-shot probe for open item 3; deleted automatically on success.",
   );
-  form.append("external_id", "t25-probe-" + fieldName + "-" + Date.now());
+  form.append("external_id", "upload-probe-" + fieldName + "-" + Date.now());
   form.append("activity_type", "WeightTraining");
   return form;
 }
@@ -351,7 +351,7 @@ async function main(): Promise<void> {
     accessToken: await client.getAccessToken(),
     payloadLogPath: join(
       tmpdir(),
-      "strava-bot-t25-probe-" + Date.now() + ".jsonl",
+      "strava-bot-upload-probe-" + Date.now() + ".jsonl",
     ),
   };
 

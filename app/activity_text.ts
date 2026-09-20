@@ -18,7 +18,7 @@ function formatTopSet(topSet: TopSet): string {
   return `${formatNumber(topSet.weight)} ${topSet.unit} x ${formatNumber(topSet.reps)}`;
 }
 
-/** Working sets only, matching the §6 totals (warmups stay excluded). */
+/** Working sets only, matching docs/reference/persistence.md (warmups excluded). */
 function workingSetCount(exercise: ExerciseSummary): number {
   return exercise.sets.filter((set) => !set.is_warmup).length;
 }

@@ -9,7 +9,7 @@ Use this skill in the main thread after the user provides feedback on a cleanup 
 
 ## Before proposing a change
 
-Read the feedback, cleanup branch or PR diff, `docs/CONSTRAINTS.md`, relevant planning material, ADRs, and the current rulebook. Classify each item as one of: missing durable rule, correctly stated rule misapplied, rule with an undesirable result, conflict/overlap with an existing rule, or one-off preference. State why a one-off will not be promoted.
+Read the feedback, cleanup branch or PR diff, `docs/CONSTRAINTS.md`, the relevant reference docs, ADRs, and the current rulebook. Classify each item as one of: missing durable rule, correctly stated rule misapplied, rule with an undesirable result, conflict/overlap with an existing rule, or one-off preference. State why a one-off will not be promoted.
 
 For a durable change, locate the existing rule it belongs with. Amend or consolidate rather than append a duplicate. A rule must have a stable `R-###` ID, one-sentence rationale, short bad/good example when it clarifies application, and whether a linter can enforce it. Do not encode a linter-enforceable rule; recommend the relevant lint configuration instead.
 

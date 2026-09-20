@@ -1,4 +1,4 @@
-/** §3 duration and §7.4 start-time derivation for one parsed workout. */
+/** Duration and Strava start-time derivation for one parsed workout. */
 
 import { Timestamp } from "@google-cloud/firestore";
 import { DateTime } from "luxon";

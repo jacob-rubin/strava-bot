@@ -4,7 +4,7 @@ This is the source of truth for cleanup rules. It preserves the durable rules fo
 
 ## Precedence
 
-`docs/CONSTRAINTS.md`, relevant planning requirements, and ADRs override every rule below. Rules must not conflict with one another. Amend or consolidate a conflicting rule before a later cleanup uses it; an agent that discovers a conflict stops and reports it.
+`docs/CONSTRAINTS.md`, the reference docs under `docs/reference/`, and ADRs override every rule below. Rules must not conflict with one another. Amend or consolidate a conflicting rule before a later cleanup uses it; an agent that discovers a conflict stops and reports it.
 
 ### R-001: Extract modules only for a real boundary
 
@@ -30,15 +30,15 @@ This is the source of truth for cleanup rules. It preserves the durable rules fo
 ### R-004: Preserve the route's required ordering
 
 **Rationale:** Cleanup must not obscure required request sequencing; the invariant is the ordering, not the file's size.
-**Bad:** Moving the §5 sequence itself, or the conditions that skip or short-circuit a step, out of `app/main.ts`.
-**Good:** Keep `app/main.ts` responsible for its route and for the §5 sequence and its branch points, visible as an ordered series of named calls; a step's internals may live in `app/ingest/<step>.ts`, and interfaces, factories, and record shapes it merely uses move freely.
+**Bad:** Moving the ingest sequence itself, or the conditions that skip or short-circuit a step, out of `app/main.ts`.
+**Good:** Keep `app/main.ts` responsible for its route and for the ingest sequence and its branch points, visible as an ordered series of named calls; a step's internals may live in `app/ingest/<step>.ts`, and interfaces, factories, and record shapes it merely uses move freely.
 **Enforceable by linter:** no
 
 ### R-005: Document and test an in-scope extracted module
 
 **Rationale:** Cleanup-created modules need explicit ownership and coverage.
 **Bad:** Adding a module without its focused test or repository-layout entry.
-**Good:** When the parent explicitly includes every required companion file, add `tests/test_<module>.ts` for every new module, edit existing tests only for moved imports or the extracted module, and amend `docs/planning/07-config-and-repo-layout.md` for a new module or test.
+**Good:** When the parent explicitly includes every required companion file, add `tests/test_<module>.ts` for every new module, edit existing tests only for moved imports or the extracted module, and amend `docs/reference/configuration.md` for a new module or test.
 **Enforceable by linter:** no
 
 ### R-006: Delete reconstructible comments

@@ -2,7 +2,7 @@ export interface RequestLog {
   status: number;
   /**
    * The shared payload, present on every logged ingest request except an auth
-   * failure — §11 allows that case no request data. Never a secret.
+   * failure — docs/reference/ingest-api.md allows that case no request data. Never a secret.
    */
   raw_text?: string;
 }

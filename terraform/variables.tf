@@ -56,25 +56,25 @@ variable "budget_actual_thresholds" {
   default     = [0.5, 0.9, 1.0]
 }
 
-# Sensitive secret material (T03), supplied at apply time from the environment
+# Sensitive secret material, supplied at apply time from the environment
 # as TF_VAR_strava_client_secret. It has no default on purpose: a default would
 # invite a committed *.tfvars file, which ADR 0007 forbids for secret versions.
 variable "strava_client_secret" {
-  description = "Strava API application client secret from T01; pass via TF_VAR_strava_client_secret."
+  description = "Strava API application client secret; pass via TF_VAR_strava_client_secret."
   type        = string
   sensitive   = true
 }
 
-# --- T19: the build-and-deploy pipeline -------------------------------------
+# --- The build-and-deploy pipeline ------------------------------------------
 
 variable "strava_client_id" {
-  description = "Strava API application client id from T01; env, not a secret (§9)."
+  description = "Strava API application client id; env, not a secret."
   type        = string
   default     = "278290"
 }
 
 variable "local_tz" {
-  description = "LOCAL_TZ for the deployed service (§9)."
+  description = "LOCAL_TZ for the deployed service."
   type        = string
   default     = "America/Chicago"
 }

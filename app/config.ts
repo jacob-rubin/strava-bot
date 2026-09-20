@@ -81,7 +81,7 @@ export class SecretManagerSecretAccessor {
    *
    * The cache is per process and otherwise lives as long as the instance, so
    * without this a container keeps using the secret version it first read.
-   * That matters for STRAVA_REFRESH_TOKEN: Strava may rotate it (§7.3), and a
+   * That matters for STRAVA_REFRESH_TOKEN: Strava may rotate it (docs/reference/strava.md), and a
    * rotation persisted by one instance is invisible to every other instance.
    * It also means a re-authorization would not be picked up without a redeploy.
    */
