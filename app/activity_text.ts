@@ -1,12 +1,3 @@
-/**
- * Deterministic activity-title and description formatter (§8).
- *
- * Local and synchronous: no provider SDK, remote call, prompt, credential,
- * timeout, or fallback branch (Constraint 9). All comparative language comes
- * from the code-computed flags already present in HistoryContext (Constraint 10);
- * this module never infers a PR or a trend from raw numbers.
- */
-
 import type {
   ActivityText,
   ExerciseSummary,
@@ -29,13 +20,7 @@ function formatTopSet(topSet: TopSet): string {
 
 /** Working sets only, matching the §6 totals (warmups stay excluded). */
 function workingSetCount(exercise: ExerciseSummary): number {
-  let count = 0;
-  for (const set of exercise.sets) {
-    if (!set.is_warmup) {
-      count += 1;
-    }
-  }
-  return count;
+  return exercise.sets.filter((set) => !set.is_warmup).length;
 }
 
 /**
@@ -106,11 +91,9 @@ export function formatActivityText(
     lines.push(describeExercise(exercise, context));
   }
 
-  let description = lines.join(". ");
-  if (!description.endsWith(".")) {
-    description += ".";
-  }
-  description = truncate(description, DESCRIPTION_MAX_LENGTH);
+  const joined = lines.join(". ");
+  const sentence = joined.endsWith(".") ? joined : `${joined}.`;
+  const description = truncate(sentence, DESCRIPTION_MAX_LENGTH);
 
   return { title, description };
 }
