@@ -3,7 +3,7 @@ status: authoritative
 last-updated: 2026-09-14
 ---
 
-← [Decisions](README.md) · [Index](../PLANNING.md)
+← [Decisions](README.md) · [Docs index](../README.md)
 
 # 0008 — TypeScript on Node.js 24 LTS
 
@@ -15,4 +15,4 @@ Persisted Firestore field names and external API field names remain snake_case w
 
 **Consequences.** Type errors and nullability issues are caught before deployment, and service code and operational scripts share one toolchain. The project now carries a compile step and TypeScript development dependencies.
 
-→ [Repository layout §10](../planning/07-config-and-repo-layout.md#10-repository-layout) · [Task T04](../tasks/T04-repo-skeleton.md)
+→ [Repository layout](../reference/configuration.md#repository-layout)

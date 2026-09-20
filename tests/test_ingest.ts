@@ -1,5 +1,5 @@
 /**
- * T17: ingest acceptance bullets from docs/planning/09-acceptance-criteria.md §12.
+ * Ingest acceptance bullets from docs/reference/ingest-api.md.
  *
  * The route is exercised through Fastify's `app.inject` with Firestore and
  * Strava replaced by in-memory stubs at their module boundaries; the local
@@ -527,7 +527,7 @@ describe("request logging", () => {
     const record = onlyRecord(records);
     expect(record).toEqual({ status: 502, raw_text: VALID_SHARE_TEXT });
     expect(JSON.stringify(record)).not.toContain("provider fault text");
-    // The fault text is still recoverable, on the durable copy §6 keeps.
+    // The fault text is still recoverable, on the durable copy Firestore keeps.
     expect(store.results[0]?.result.error).toContain("provider fault text");
   });
 

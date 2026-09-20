@@ -21,7 +21,7 @@
 .PARAMETER Fresh
   Rewrite the payload so it is a NEW workout to the idempotency layer.
 
-  Section 6 dedupes on two keys: the share-link slug, and a content_hash over
+  Persistence dedupes on two keys: the share-link slug, and a content_hash over
   started_at plus each exercise name and set count. Changing only the slug is
   not enough - the content_hash lookup still matches. So -Fresh replaces the
   slug AND sets the date line to now, which is also what makes the posted

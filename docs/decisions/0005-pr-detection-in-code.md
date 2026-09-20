@@ -3,7 +3,7 @@ status: authoritative
 last-updated: 2026-09-14
 ---
 
-← [Decisions](README.md) · [Index](../PLANNING.md)
+← [Decisions](README.md) · [Docs index](../README.md)
 
 # 0005 — PR detection computed explicitly in code
 
@@ -13,4 +13,4 @@ last-updated: 2026-09-14
 
 **Consequences.** The comparison arithmetic lives in focused, testable code, and deterministic phrasing can only make claims the computed flags support. See [Constraints #10](../CONSTRAINTS.md).
 
-→ [Activity title and description formatting §8](../planning/06-activity-text.md)
+→ [Activity title and description formatting](../reference/activity-text.md)

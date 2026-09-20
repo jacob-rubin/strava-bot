@@ -1,4 +1,4 @@
-/** Strong-to-Strava ingest app: Fastify routes and the fixed §5 processing order. */
+/** Strong-to-Strava ingest app: routes and the processing order of docs/reference/ingest-api.md. */
 
 import { Timestamp } from "@google-cloud/firestore";
 import Fastify, { type FastifyInstance } from "fastify";
@@ -66,11 +66,12 @@ export function createApp({
   });
 
   app.post<{ Params: IngestParams }>("/ingest/:path_token", {
-    // §11: one line per ingest request, carrying the payload and the status it
-    // produced. The hook is route-scoped, so a health check logs nothing.
+    // docs/reference/ingest-api.md: one line per ingest request, carrying the
+    // payload and the status it produced. The hook is route-scoped, so a
     onResponse: (request, reply, done) => {
       const record: RequestLog = { status: reply.statusCode };
-      // Constraint 3 / §11: a bad auth gets the bare status counter and no request
+      // health check logs nothing.
+    // Constraint 3: a bad auth gets the bare status counter and no request
       // data. Constraint 7 / ADR 0011: every other request logs its payload.
       if (reply.statusCode !== 404 && typeof request.body === "string") {
         record.raw_text = requestText(
@@ -127,8 +128,8 @@ export function createApp({
           .send(alreadyPostedResponse(existing.strava?.url));
       }
 
-      // §6: a failed post keeps its record and attempt count, so sharing again
-      // retries it instead of being turned away as a completed duplicate.
+      // Persistence: a failed post keeps its record and attempt count, so sharing
+      // again retries it instead of being turned away as a completed duplicate.
       const resultDedupeKey =
         existing?.status === "failed" ? existing.dedupe_key : workoutDedupeKey;
 
@@ -152,13 +153,13 @@ export function createApp({
         });
       }
 
-      // §6: history is read before the post so this workout never compares against itself.
+      // History is read before the post, so this workout never compares against itself.
       const history = await workouts.getHistoryContext(
         summary,
         timing.startedAt,
       );
 
-      // §8 / constraint 9: formatting is local and deterministic, never a network call.
+      // Constraint 9: formatting is local and deterministic, never a network call.
       const activityText = formatActivityText(summary, history);
 
       const result = await postWorkoutActivity({

@@ -3,7 +3,7 @@ status: authoritative
 last-updated: 2026-09-13
 ---
 
-← [Decisions](README.md) · [Index](../PLANNING.md)
+← [Decisions](README.md) · [Docs index](../README.md)
 
 # 0001 — Static bearer secret instead of OIDC/HMAC
 
@@ -13,4 +13,4 @@ last-updated: 2026-09-13
 
 **Consequences.** Blast radius is bounded — the key only permits posting workouts to one Strava account. Rotation means a new secret version plus editing one field in the Shortcut. The Shortcut itself must never be shared, since the secret is visible in it. See [Constraints #3](../CONSTRAINTS.md).
 
-→ [Ingest API §5](../planning/03-ingest-api.md)
+→ [Ingest API](../reference/ingest-api.md)

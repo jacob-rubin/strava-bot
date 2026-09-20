@@ -3,7 +3,7 @@ status: authoritative
 last-updated: 2026-09-14
 ---
 
-← [Decisions](README.md) · [Index](../PLANNING.md)
+← [Decisions](README.md) · [Docs index](../README.md)
 
 # 0002 — Request `activity:write` only, no read scope
 
@@ -13,4 +13,4 @@ last-updated: 2026-09-14
 
 **Consequences.** The service is structurally write-only. Any separately designed post-MVP AI enhancement would have to derive its input from Strong share text or this service's own data, never from Strava. See [Constraints #1–2](../CONSTRAINTS.md).
 
-→ [Strava integration §7.2, §7.5](../planning/05-strava-integration.md)
+→ [Strava integration](../reference/strava.md)
