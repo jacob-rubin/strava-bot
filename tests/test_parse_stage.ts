@@ -1,4 +1,4 @@
-/** R-005 companion for app/ingest/parse_stage.ts (constraint 6 / §5 step 3). */
+/** R-005 companion for app/ingest/parse_stage.ts (constraint 6 / ingest step 3). */
 import { DateTime } from "luxon";
 import { afterEach, describe, expect, it, vi } from "vitest";
 

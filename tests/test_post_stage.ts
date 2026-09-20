@@ -1,4 +1,4 @@
-/** R-005 companion for app/ingest/post_stage.ts (§5 steps 7 and 8). */
+/** R-005 companion for app/ingest/post_stage.ts (ingest steps 7 and 8). */
 import { Timestamp } from "@google-cloud/firestore";
 import { describe, expect, it } from "vitest";
 

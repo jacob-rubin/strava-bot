@@ -1,4 +1,4 @@
-/** R-005 companion for app/ingest/required_store.ts (constraint 11 / §11). */
+/** R-005 companion for app/ingest/required_store.ts (constraint 11). */
 import { Timestamp } from "@google-cloud/firestore";
 import { describe, expect, it } from "vitest";
 

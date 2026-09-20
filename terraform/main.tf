@@ -1,11 +1,10 @@
-# strava-bot GCP infrastructure (T02).
+# strava-bot GCP infrastructure.
 #
 # Terraform declares everything except the Cloud Run service itself, which the
 # Cloud Build pipeline deploys; the gcloud CLI is never run locally to create or
 # update resources (docs/decisions/0007-terraform-for-gcp-infra.md).
-# The google_cloudbuild_trigger and google_billing_budget are added by T19.
 #
-# State can contain secret material once T03 adds secret versions, so it lives
+# State can contain secret material once secret versions exist, so it lives
 # in the remote GCS backend below (versioned, uniform ACLs, public access
 # prevented) rather than on disk or in VCS — the "prefer a remote backend" half
 # of ADR 0007. The bucket is the one bootstrap resource Terraform cannot own:
@@ -21,7 +20,7 @@ terraform {
       version = "~> 6.0"
     }
 
-    # T03 generates INGEST_KEY and INGEST_PATH_TOKEN rather than taking them
+    # INGEST_KEY and INGEST_PATH_TOKEN are generated here rather than taken
     # from a file that could be committed.
     random = {
       source  = "hashicorp/random"
@@ -57,11 +56,11 @@ provider "google" {
 }
 
 locals {
-  # The Secret-Manager-sourced rows of §9 Configuration, keyed by the env var
-  # the service reads. Values are the secret names the Cloud Build deploy step
-  # in §5 Deployment already references. Versions are created below (T03),
-  # except STRAVA_REFRESH_TOKEN, which is populated by scripts/authorize.py
-  # (T06) and rewritten by the service on rotation (Constraint 8).
+  # The Secret-Manager-sourced rows of docs/reference/configuration.md, keyed by
+  # the env var the service reads. Values are the secret names the deploy step
+  # already references. Versions are created below,
+  # except STRAVA_REFRESH_TOKEN, which scripts/authorize.ts populates and the
+  # service rewrites on rotation (Constraint 8).
   secrets = {
     INGEST_KEY           = "strava-bot-ingest-key"
     INGEST_PATH_TOKEN    = "strava-bot-path-token"
@@ -82,7 +81,7 @@ locals {
     "firestore.googleapis.com",
     "run.googleapis.com",
     "secretmanager.googleapis.com",
-    # Not in T02's list, but the remote state bucket lives in this project.
+    # The remote state bucket lives in this project.
     "storage.googleapis.com",
   ]
 
@@ -107,7 +106,7 @@ resource "google_project_service" "enabled" {
   disable_on_destroy         = false
 }
 
-# §6 Persistence assumes Firestore in native mode, not Datastore mode.
+# docs/reference/persistence.md assumes Firestore in native mode, not Datastore.
 resource "google_firestore_database" "default" {
   project     = google_project.strava_bot.project_id
   name        = "(default)"
@@ -117,8 +116,8 @@ resource "google_firestore_database" "default" {
   depends_on = [google_project_service.enabled]
 }
 
-# Cloud Run runtime identity. The Cloud Build deploy step (T19) runs the service
-# as this account; it holds only the Secret Manager roles §9 requires.
+# Cloud Run runtime identity. The Cloud Build deploy step runs the service as
+# this account; it holds only the Secret Manager roles configuration requires.
 resource "google_service_account" "run" {
   project      = google_project.strava_bot.project_id
   account_id   = "strava-bot-run"
@@ -140,10 +139,10 @@ resource "google_secret_manager_secret" "secrets" {
   depends_on = [google_project_service.enabled]
 }
 
-# T03 step 2: the two ingest secrets are generated here, never typed or read
+# The two ingest secrets are generated here, never typed or read
 # from a file. 43 alphanumeric characters is ~256 bits of entropy, comfortably
 # past the 32-byte floor, and every character is URL-safe — INGEST_PATH_TOKEN
-# is a path segment of POST /ingest/{path_token} (§5), and ADR 0001 makes both
+# is a path segment of POST /ingest/{path_token}, and ADR 0001 makes both
 # of these static bearer secrets the whole of the endpoint's authentication.
 resource "random_password" "ingest_key" {
   length  = 43
@@ -155,8 +154,8 @@ resource "random_password" "ingest_path_token" {
   special = false
 }
 
-# One enabled version per Secret-Manager-sourced variable of §9, except
-# STRAVA_REFRESH_TOKEN, whose first version is written by T06's
+# One enabled version per Secret-Manager-sourced variable, except
+# STRAVA_REFRESH_TOKEN, whose first version is written by
 # scripts/authorize.ts and rewritten by the service on rotation.
 resource "google_secret_manager_secret_version" "ingest_key" {
   secret      = google_secret_manager_secret.secrets["INGEST_KEY"].id
@@ -170,7 +169,7 @@ resource "google_secret_manager_secret_version" "ingest_path_token" {
   enabled     = true
 }
 
-# T03 step 3: the value comes from TF_VAR_strava_client_secret in the applying
+# The value comes from TF_VAR_strava_client_secret in the applying
 # shell's environment, never from a file that could be committed.
 resource "google_secret_manager_secret_version" "strava_client_secret" {
   secret      = google_secret_manager_secret.secrets["STRAVA_CLIENT_SECRET"].id
@@ -178,7 +177,7 @@ resource "google_secret_manager_secret_version" "strava_client_secret" {
   enabled     = true
 }
 
-# §9: the service reads every secret above at startup.
+# The service reads every secret above at startup.
 resource "google_secret_manager_secret_iam_member" "accessor" {
   # Keyed off the static local, not the resource map, so the key set is known
   # at plan time (a resource-derived for_each blocks plan/import).
@@ -190,7 +189,7 @@ resource "google_secret_manager_secret_iam_member" "accessor" {
   member    = "serviceAccount:${google_service_account.run.email}"
 }
 
-# §9 / Constraint 8: a rotated refresh token must be persisted immediately as a
+# Constraint 8: a rotated refresh token must be persisted immediately as a
 # new version, so the runtime account can add versions to that secret alone.
 resource "google_secret_manager_secret_iam_member" "version_adder" {
   for_each = toset(local.rotated_secrets)
@@ -201,10 +200,10 @@ resource "google_secret_manager_secret_iam_member" "version_adder" {
   member    = "serviceAccount:${google_service_account.run.email}"
 }
 
-# §9 lists only the two Secret Manager roles, but §6 Persistence has the same
-# service reading and writing `workouts` and `history` on every request, and
-# Constraint 11 makes a Firestore failure a 500 rather than a skipped write. A
-# deployment without this is a service that answers /healthz and nothing else.
+# Configuration lists only the two Secret Manager roles, but the same service
+# reads and writes `workouts` and `history` on every request, and Constraint 11
+# makes a Firestore failure a 500 rather than a skipped write. A deployment
+# without this is a service that answers /health and nothing else.
 resource "google_project_iam_member" "run_firestore" {
   project = google_project.strava_bot.project_id
   role    = "roles/datastore.user"
@@ -214,7 +213,6 @@ resource "google_project_iam_member" "run_firestore" {
 
 # Constraint 13: the endpoint is public and invokes a paid model, so the
 # --max-instances=3 cost control must be paired with a billing budget alert.
-# Formally T19's resource; landed early so no spend can happen unwatched.
 # Alerts email the billing account's admins and users by default — no
 # notification channel is wired up.
 resource "google_billing_budget" "monthly" {
@@ -255,7 +253,7 @@ resource "google_billing_budget" "monthly" {
 }
 
 # ---------------------------------------------------------------------------
-# T19 — the build-and-deploy pipeline (§5 Deployment, ADR 0007)
+# The build-and-deploy pipeline (docs/operations.md, ADR 0007)
 #
 # Terraform stops at the trigger: the Cloud Run service itself is created by
 # the pipeline below, and is read back through a data source further down.
@@ -266,12 +264,12 @@ locals {
   # Untagged here because `pack` and `gcloud run deploy` want different forms.
   image = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.app.repository_id}/strava-bot"
 
-  # §5 Deployment shows --set-secrets with three of the four Secret-Manager
-  # variables of §9; deriving it from local.secrets binds every one of them and
+  # Deriving --set-secrets from local.secrets binds every Secret-Manager
+  # variable the service reads and
   # keeps a future secret from being silently left off the service.
   run_secrets = join(",", [for env_var, secret in local.secrets : "${env_var}=${secret}:latest"])
 
-  # The non-secret env rows of §9. The rest of §9's env variables are optional
+  # The non-secret env rows of configuration. The rest are optional
   # and the service already defaults them to the documented values.
   run_env_vars = join(",", [
     "STRAVA_CLIENT_ID=${var.strava_client_id}",
@@ -386,9 +384,8 @@ resource "google_cloudbuildv2_repository" "app" {
 
 # --- The trigger: buildpacks build, then Cloud Run deploy --------------------
 #
-# §5 Deployment writes location = "global"; a 2nd-generation repository is
-# regional, and a trigger must sit in its repository's region, so this one is
-# regional too.
+# A 2nd-generation repository is regional, and a trigger must sit in its
+# repository's region, so this trigger is regional rather than global.
 resource "google_cloudbuild_trigger" "deploy" {
   project  = google_project.strava_bot.project_id
   name     = "strava-bot-deploy"
@@ -420,7 +417,7 @@ resource "google_cloudbuild_trigger" "deploy" {
       args       = ["test"]
     }
 
-    # Google's native buildpacks — no Dockerfile (§10 Repository layout).
+    # Google's native buildpacks — no Dockerfile.
     step {
       name = "gcr.io/k8s-skaffold/pack"
       args = [
@@ -440,7 +437,7 @@ resource "google_cloudbuild_trigger" "deploy" {
 
     # The only place gcloud appears, and only inside Cloud Build (ADR 0007).
     # Every flag below the image is a cost control, not a tuning knob
-    # (§5 Deployment, Constraint 13).
+    # (docs/operations.md, Constraint 13).
     step {
       name       = "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
       entrypoint = "gcloud"

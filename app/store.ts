@@ -61,14 +61,14 @@ export interface WorkoutResult {
   readonly error: string | null;
 }
 
-/** One entry in {@link StoredExerciseHistory.recent}; the last 10 only (§6). */
+/** One entry in {@link StoredExerciseHistory.recent}; the last 10 only. */
 export interface HistoryRecentEntry {
   readonly date: Timestamp;
   readonly top_set: TopSet | null;
   readonly volume: number;
 }
 
-/** A `history/{exercise_name}` document read back from Firestore (§6). */
+/** A `history/{exercise_name}` document read back from Firestore. */
 export interface StoredExerciseHistory {
   readonly exercise_name: string;
   readonly best_e1rm: number | null;
@@ -125,7 +125,8 @@ export class WorkoutStore {
   }
 
   /**
-   * The dual idempotency lookup of §6: `workouts/{dedupe_key}` first, then a
+   * The dual idempotency lookup of docs/reference/persistence.md:
+   * `workouts/{dedupe_key}` first, then a
    * `content_hash` equality query on a miss.
    */
   async findExisting(
@@ -155,7 +156,7 @@ export class WorkoutStore {
   }
 
   /**
-   * Initial write of the full §6 document with `status="received"`. `parsed`,
+   * Initial write of the full workout document with `status="received"`. `parsed`,
    * `started_at`, and `elapsed_s` are null when parsing failed — `raw_text` is
    * still persisted verbatim (constraint 6).
    */
@@ -179,8 +180,8 @@ export class WorkoutStore {
 
   /**
    * Terminal update after the Strava call: `status`, `strava`, `error`, and an
-   * incremented `attempts`. A read-modify-write is enough here — §12 forbids a
-   * background retry queue, and the §6 idempotency record is already durable
+   * incremented `attempts`. A read-modify-write is enough here — constraint 12 forbids a
+   * background retry queue, and the idempotency record is already durable
    * before the Strava call, so no two flows race on the same document.
    */
   async recordResult(dedupeKey: string, result: WorkoutResult): Promise<void> {
@@ -190,7 +191,7 @@ export class WorkoutStore {
     const currentAttempts = data?.["attempts"];
     if (typeof currentAttempts !== "number") {
       throw new Error(
-        `workouts document "${dedupeKey}" is missing the required numeric field "attempts" (§6); the idempotency record is corrupt or absent`,
+        `workouts document "${dedupeKey}" is missing the required numeric field "attempts"; the idempotency record is corrupt or absent`,
       );
     }
     const attempts = currentAttempts + 1;
@@ -202,7 +203,7 @@ export class WorkoutStore {
       attempts,
     });
 
-    // §6: history is written only after a successful post. A failed post must
+    // History is written only after a successful post. A failed post must
     // not advance a personal best, so anything but `posted` skips this.
     if (result.status !== "posted") {
       return;
@@ -221,7 +222,7 @@ export class WorkoutStore {
 
   /**
    * Read one `history/{exercise_name}` document for the activity-text context
-   * (§6). Returns null for an exercise that has never been posted before.
+   * Returns null for an exercise that has never been posted before.
    */
   async getExerciseHistory(
     exerciseName: string,
@@ -234,9 +235,9 @@ export class WorkoutStore {
   }
 
   /**
-   * Read the §6 activity-text context for a workout before the post. Each
+   * Read the activity-text context for a workout before the post. Each
    * exercise's history document is read by base name; a missing document
-   * leaves the exercise out of the context (§6: the omit-comparative-claims
+   * leaves the exercise out of the context (the omit-comparative-claims
    * rule applies per exercise). The caller supplies the workout's start
    * timestamp so `days_since_last` is measured against this workout rather
    * than against server receipt time.
@@ -259,7 +260,7 @@ export class WorkoutStore {
   /**
    * Rolling update of one exercise's history document: raise `best_e1rm` and
    * `best_top_set` against the stored values, bump `last_performed`, and keep
-   * `recent` capped at its last {@link HISTORY_RECENT_LIMIT} entries (§6).
+   * `recent` capped at its last {@link HISTORY_RECENT_LIMIT} entries.
    */
   async #recordExerciseHistory(
     exercise: ExerciseSummary,
@@ -301,11 +302,11 @@ export class WorkoutStore {
 
 // --- History helpers ---------------------------------------------------------
 
-/** §6: `recent` is a rolling window of the last 10 entries. */
+/** Persistence: `recent` is a rolling window of the last 10 entries. */
 const HISTORY_RECENT_LIMIT = 10;
 
 /**
- * Epley estimated one-rep max: `weight × (1 + reps / 30)`. The glossary
+ * Epley estimated one-rep max: `weight × (1 + reps / 30)`. The spec
  * leaves the formula to the implementer; Epley is the standard, deterministic
  * choice. A one-rep set is already a one-rep max, so it is returned unchanged
  * rather than inflated. Non-positive loads (machine assistance) and reps below
@@ -337,7 +338,7 @@ function bestE1rm(sets: readonly WorkoutSet[]): number | null {
   }, null);
 }
 
-/** Lexicographic `(weight, reps)` max for §6 `best_top_set` (§3 top-set rule). */
+/** Lexicographic `(weight, reps)` max for `best_top_set` (input-contract top set). */
 function betterTopSet(a: TopSet | null, b: TopSet | null): TopSet | null {
   if (a === null) {
     return b;
@@ -374,7 +375,7 @@ function daysSince(lastPerformed: Timestamp, startedAt: Timestamp): number {
 }
 
 /**
- * §6 `volume_trend`: null under two data points, otherwise the direction
+ * `volume_trend`: null under two data points, otherwise the direction
  * from the oldest to the newest volume in the rolling `recent` window.
  */
 function volumeTrend(
@@ -400,11 +401,11 @@ function volumeTrend(
 }
 
 /**
- * Assemble the §6 `HistoryContext` for one workout from stored `history`
+ * Assemble the `HistoryContext` for one workout from stored `history`
  * documents. Pure and synchronous: the caller reads the documents and passes
  * them keyed by base exercise name (`null` for an unseen exercise).
  *
- * - Unseen exercises are left out of both maps (§6: the omit-comparative-
+ * - Unseen exercises are left out of both maps (the omit-comparative-
  *   claims rule applies per exercise).
  * - `days_since_last` is null only when the exercise was never performed
  *   before; once a history document exists it is always a whole-day count.

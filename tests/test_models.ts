@@ -291,7 +291,7 @@ describe("activity-text data model", () => {
     exercises: [exerciseSummary],
   };
 
-  it("carries every §6 WorkoutSummary field", () => {
+  it("carries every WorkoutSummary field", () => {
     expect(Object.keys(summary).sort()).toStrictEqual([
       "exercises",
       "started_at",

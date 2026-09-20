@@ -1,4 +1,4 @@
-/** §5 steps 7 and 8: the Strava call and the terminal record it produces. */
+/** Ingest steps 7 and 8 (docs/reference/ingest-api.md): the Strava call and the terminal record it produces. */
 
 import type { ActivityText, WorkoutSummary } from "../models.js";
 import type { ActivityClient } from "../ports/activity_client.js";

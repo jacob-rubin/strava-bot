@@ -15,7 +15,7 @@ Apply the rulebook in [references/style-rules.md](references/style-rules.md) to 
 4. Discover the repository's formatter and linter commands. Run them only against the named files when their interfaces allow it; never run a repository-wide write command. If targeted automatic fixing is unavailable, run their check-only forms and make mechanical changes manually.
 5. Apply only non-mechanical rules that are relevant to the named files. Do not change observable behavior, public statuses, dependency versions, tests, or specifications. The sole exception is the layout document required by R-005 after adding a module or test.
 6. Run the applicable formatter/linter checks plus `npm run typecheck` and `npm test`. A failed check is a stop condition; do not weaken a check or make unrelated repairs.
-7. Confirm the working-tree diff contains only named files and, when R-005 applies, `docs/planning/07-config-and-repo-layout.md`. Leave those changes uncommitted for the caller to review. If no worthwhile cleanup remains after tooling, revert the working tree to its prior state and report that instead.
+7. Confirm the working-tree diff contains only named files and, when R-005 applies, `docs/reference/configuration.md`. Leave those changes uncommitted for the caller to review. If no worthwhile cleanup remains after tooling, revert the working tree to its prior state and report that instead.
 
 ## Decisions and stops
 

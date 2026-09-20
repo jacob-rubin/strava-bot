@@ -1,8 +1,8 @@
 /**
  * scripts/reparse.ts — re-parse stored `raw_text` after a parser change and
- * report what the current parser would produce (§10 repository layout).
+ * report what the current parser would produce (docs/reference/configuration.md).
  *
- * §6 keeps `raw_text` verbatim on every `workouts` document, including the
+ * Every `workouts` document keeps `raw_text` verbatim, including the
  * ones whose parse failed (constraint 6), precisely so a parser fix can be
  * replayed over history. This script is that replay: it reads each document,
  * runs the current parser over the stored text, and diffs the result against
@@ -232,7 +232,7 @@ export function diffDocument(stored: StoredWorkoutParse): DocumentDiff {
 /**
  * Structural diff of two JSON-shaped values, rendered as one line per leaf
  * difference. Arrays are compared positionally, which is the right alignment
- * here: a re-parse of the same text keeps set and exercise order (§3 rule 3),
+ * here: a re-parse of the same text keeps set and exercise order (input contract rule 3),
  * so position identifies the same line before and after.
  */
 export function diffValues(before: unknown, after: unknown, path: string): string[] {

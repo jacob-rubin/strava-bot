@@ -1,5 +1,5 @@
 /**
- * T10 covers the §3 grammar and the set payload variants. T11 adds the
+ * Covers the input-contract grammar and set payload variants, plus the
  * derived-value tests: totals, top set, dedupe key, content hash, and elapsed.
  */
 import { readFileSync } from "node:fs";
