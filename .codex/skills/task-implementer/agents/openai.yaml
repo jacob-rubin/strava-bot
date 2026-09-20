@@ -1,4 +1,0 @@
-interface:
-  display_name: "Task Implementer"
-  short_description: "Run one strava-bot task in an isolated worktree"
-  default_prompt: "Use $task-implementer for the next task: run npm run status:next and take its recommendation."

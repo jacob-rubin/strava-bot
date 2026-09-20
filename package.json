@@ -11,11 +11,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "dev": "tsx app/server.ts",
-    "start": "node --enable-source-maps dist/app/server.js",
-    "status": "node tools/status.ts next",
-    "status:write": "node tools/status.ts write",
-    "status:check": "node tools/status.ts check",
-    "status:next": "node tools/status.ts next"
+    "start": "node --enable-source-maps dist/app/server.js"
   },
   "dependencies": {
     "@google-cloud/firestore": "^9.1.0",
