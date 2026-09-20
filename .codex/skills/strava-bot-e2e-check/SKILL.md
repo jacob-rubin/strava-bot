@@ -21,7 +21,7 @@ For the read-only check that the auth gate still rejects unknown callers, use `t
 
 ## Why -Fresh matters
 
-Section 6 dedupes on two independent keys: the share-link slug, and a `content_hash` over `started_at` plus each exercise name and set count. Randomizing the slug alone is not enough — the content-hash lookup still matches and the service returns `already posted`.
+The service dedupes on two independent keys: the share-link slug, and a `content_hash` over `started_at` plus each exercise name and set count. Randomizing the slug alone is not enough — the content-hash lookup still matches and the service returns `already posted`.
 
 `-Fresh` rewrites the slug *and* the date line to now, which is what makes a repeat run a genuinely new workout. Without it, `already posted` on a second run is correct idempotent behaviour, not a failure.
 

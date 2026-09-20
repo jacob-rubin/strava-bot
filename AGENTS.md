@@ -1,21 +1,32 @@
 # AGENTS.md
 
-This repo is spec-first: `app/`, `scripts/`, and `tests/` don't exist yet (see [docs/STATUS.md](docs/STATUS.md)). The implementation target is TypeScript on Node.js 24 LTS. The full implementation spec lives under [docs/](docs/), split into small files for progressive disclosure — read only the section relevant to the task at hand, not the whole tree.
+A deployed single-user service: Strong share text in, Strava activity out. Strict TypeScript on Node.js 24 LTS, Fastify on Cloud Run, Firestore for state, Terraform for infrastructure.
 
-## Start here
+## Orientation
 
-- [docs/tasks/README.md](docs/tasks/README.md) — executable task runbooks, one per atomic step. This is the entrypoint for doing work: pick a task, read its **Read first** links, run its **Done when** check.
-- [docs/CONSTRAINTS.md](docs/CONSTRAINTS.md) — non-negotiable rules. Read this in full before touching anything under `app/`; it's short by design so an agent can self-check against it in one pass.
-- [docs/status/](docs/status/README.md) — the status ledger: one file per task, one per open item. This is the source of truth for progress, and it is what a task branch edits. [docs/STATUS.md](docs/STATUS.md) is the rendered view of it — read it, never edit it.
-- [docs/PLANNING.md](docs/PLANNING.md) — index into the full spec at [docs/planning/](docs/planning/), chunked by topic (input contract, ingest API, persistence, Strava integration, activity-text formatting, config/layout, error handling, acceptance criteria, build order). Follow the link for whatever you're implementing; don't load the whole spec into context at once.
-- [docs/decisions/](docs/decisions/) — ADRs explaining *why* past choices were made. Check here before revisiting a decision that looks questionable in isolation.
-- [docs/glossary.md](docs/glossary.md) — domain terms used across the spec, each pointing at its defining section.
+- [docs/CONSTRAINTS.md](docs/CONSTRAINTS.md) — non-negotiable rules. **Read this in full before editing `app/`**; it is short by design so it can be self-checked in one pass.
+- [docs/README.md](docs/README.md) — the docs index, project scope, and the questions still open.
+- [docs/architecture.md](docs/architecture.md) — how the pieces fit, including every GCP resource.
+- [docs/reference/](docs/reference/) — behaviour, one document per concern: [input contract](docs/reference/input-contract.md), [ingest API](docs/reference/ingest-api.md), [persistence](docs/reference/persistence.md), [Strava](docs/reference/strava.md), [activity text](docs/reference/activity-text.md), [configuration](docs/reference/configuration.md).
+- [docs/reference/style-rules.md](docs/reference/style-rules.md) — the code style rules. Read the rules that bear on what you are writing before you write it, not after review.
+- [docs/operations.md](docs/operations.md) — deploys, secrets, the Shortcut, re-parsing, and the live check scripts.
+- [docs/decisions/](docs/decisions/README.md) — ADRs. Check here before revisiting a choice that looks questionable in isolation.
+
+Read the document that covers what you are changing, not the whole tree.
 
 ## Working in this repo
 
-- Claims about the Strava API in the spec are tagged `[V]` (verified against Strava's docs) or `[U]` (unverified/contradicted). Never build a required path on a `[U]` claim — probe it at runtime and fall back.
-- Use strict TypeScript throughout `app/`, `scripts/`, and `tests/`; do not introduce Python tooling or implementations. Keep persisted Firestore field names in the snake_case forms defined by the spec.
-- When asked to create or update a skill, assume the repo-local `.codex/skills/` copy unless the user explicitly requests a global skill. Do not copy repo skills into `$CODEX_HOME/skills` by default.
-- Tasks run in parallel, one worktree and branch each. Work out what to do next with `npm run status:next` rather than by reading [docs/STATUS.md](docs/STATUS.md): it reads the ledger from `origin/main` and treats any `codex/<id>-*` branch as a claim on that task.
-- Record progress by editing the single file that owns it — `docs/status/tasks/<id>.md` or `docs/status/open-items/<n>.md` — and nothing else. That is what keeps parallel branches from conflicting; see [docs/status/README.md](docs/status/README.md). Task runbooks are static — never record status inside them.
-- If a change would violate a rule in [docs/CONSTRAINTS.md](docs/CONSTRAINTS.md), stop and re-read the linked spec section rather than routing around it.
+- `npm test` and `npm run typecheck` must pass before a change is done. Verify behaviour by running it, not by reading it.
+- Strict TypeScript throughout `app/`, `scripts/`, `tests/`; no Python tooling or implementations. Every module under `app/` has a matching `tests/test_<module>.ts`, and a new module is added to the layout in [docs/reference/configuration.md](docs/reference/configuration.md).
+- New and changed TypeScript follows [docs/reference/style-rules.md](docs/reference/style-rules.md). Cite the rule ID when a review comment or a deviation turns on one.
+- Keep persisted Firestore field names in the snake_case forms the reference docs define; renaming one is a data migration, not a cleanup.
+- Never print, log, or commit a secret. `raw_text` is deliberately logged; credentials never are ([Constraint 7](docs/CONSTRAINTS.md)).
+- A Strava read payload must not land in an agent's context — write it to a gitignored file and quote only what you need ([Constraint 2](docs/CONSTRAINTS.md)).
+- Infrastructure changes go through `terraform/`. `gcloud` is for reading, never for mutating.
+- If a change would violate a rule in [docs/CONSTRAINTS.md](docs/CONSTRAINTS.md), stop and re-read the linked reference section rather than routing around it.
+- If a reference document turns out to be wrong, fix the document in the same change rather than leaving the code and the docs disagreeing.
+- When asked to create or update a skill, assume the repo-local `.codex/skills/` copy unless a global skill is explicitly requested.
+
+## Work style
+
+Work happens as ordinary branches and pull requests; there is no task queue or status ledger to consult. Repo-local skills cover the recurring jobs: `code-cleanup` for applying the style rules to named files, `cleanup-rules-update` for changing those rules, `strava-bot-e2e-check` for a live end-to-end check, and `review-strava-bot-cloud-run-logs` for log triage.

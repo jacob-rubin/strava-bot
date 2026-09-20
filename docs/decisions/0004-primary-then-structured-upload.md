@@ -3,7 +3,7 @@ status: authoritative
 last-updated: 2026-09-13
 ---
 
-← [Decisions](README.md) · [Index](../PLANNING.md)
+← [Decisions](README.md) · [Docs index](../README.md)
 
 # 0004 — Ship `POST /activities` first; gate structured uploads behind a flag
 
@@ -13,4 +13,4 @@ last-updated: 2026-09-13
 
 **Consequences.** A user who taps Share always gets an activity, regardless of whether the [U] upload behavior ever pans out. The probe script is disposable scaffolding, not part of the request path.
 
-→ [Strava integration §7.4](../planning/05-strava-integration.md), [Build order §13, step 7](../planning/10-build-order-and-client.md)
+→ [Strava integration](../reference/strava.md), [Structured uploads](../reference/strava.md#structured-uploads)

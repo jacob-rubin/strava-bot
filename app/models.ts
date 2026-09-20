@@ -1,7 +1,7 @@
-/** Weight units Strong emits. Never normalized before §7.4 (§3 derived values). */
+/** Weight units Strong emits; never normalized before docs/reference/strava.md. */
 export type WeightUnit = "lb" | "kg";
 
-/** Distance units Strong emits (§3 set payload variants). */
+/** Distance units Strong emits (docs/reference/input-contract.md). */
 export type DistanceUnit = "mi" | "km" | "m" | "ft";
 
 export type SetKind =
@@ -16,9 +16,9 @@ export type SetKind =
 interface WorkoutSetBase {
   /** Raw index token from `Set <index>:` — `"1"`, `"W"`, or any other token. */
   index: string;
-  /** §3 rule 8: warmups remain parsed but are excluded from totals. */
+  /** Input contract rule 8: warmups remain parsed but are excluded from totals. */
   is_warmup: boolean;
-  /** §3 derived values: `weight × reps`, or `0` when either is absent; never normalize. */
+  /** Derived value: `weight × reps`, or `0` when either is absent; never normalize. */
   volume: number;
 }
 
@@ -34,7 +34,7 @@ export interface WeightRepsSet extends WorkoutSetBase {
 
 export interface AssistedRepsSet extends WorkoutSetBase {
   kind: "assisted_reps";
-  /** §3: preserve the signed load; negative means machine assistance. */
+  /** Input contract: preserve the signed load; negative means machine assistance. */
   weight: number;
   unit: WeightUnit;
   reps: number;
@@ -83,7 +83,7 @@ export interface DistanceTimeSet extends WorkoutSetBase {
   distance_unit: DistanceUnit;
 }
 
-/** Constraint 5 and §3 rule 9: retain unrecognized payloads; never drop a line. */
+/** Constraint 5 and input contract rule 9: retain unrecognized payloads; never drop a line. */
 export interface UnparsedSet extends WorkoutSetBase {
   kind: "unparsed";
   raw: string;
@@ -105,23 +105,23 @@ export type WorkoutSet =
   | UnparsedSet;
 
 export interface Exercise {
-  /** §3 rule 7: base name with trailing equipment parenthetical stripped. */
+  /** Input contract rule 7: base name with trailing equipment parenthetical stripped. */
   name: string;
-  /** §3 rule 7: absent equipment parentheses are `null`. */
+  /** Input contract rule 7: absent equipment parentheses are `null`. */
   equipment: string | null;
   sets: WorkoutSet[];
 }
 
-/** §6: persisted verbatim under `workouts/{dedupe_key}.parsed`. */
+/** Persisted verbatim under `workouts/{dedupe_key}.parsed`. */
 export interface Workout {
-  /** §3 `title_line`. */
+  /** Input contract `title_line`. */
   workout_name: string;
-  /** §3: naive local ISO-8601, with no offset. */
+  /** Input contract: naive local ISO-8601, with no offset. */
   started_at: string;
   exercises: Exercise[];
-  /** §3 rule 5: Strong share slug, or `null` when absent. */
+  /** Input contract rule 5: Strong share slug, or `null` when absent. */
   share_slug: string | null;
-  /** §3 rule 3: non-fatal parse notes. */
+  /** Input contract rule 3: non-fatal parse notes. */
   warnings: string[];
 }
 
@@ -132,7 +132,7 @@ export type TopSet = {
 };
 
 export interface WorkoutSummary {
-  workout_name: string; // title_line, §3
+  workout_name: string; // title_line
   started_at: string; // naive local ISO-8601, no offset
   total_volume: number; // working sets only
   total_reps: number;
@@ -141,7 +141,7 @@ export interface WorkoutSummary {
 }
 
 export interface ExerciseSummary {
-  name: string; // base name, equipment stripped (§3 rule 7)
+  name: string; // base name, equipment stripped (rule 7)
   equipment: string | null;
   top_set: TopSet | null;
   total_volume: number;

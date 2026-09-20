@@ -189,7 +189,7 @@ function makeQuery(
 }
 
 describe("WorkoutStore", () => {
-  it("writes a fresh document with every §6 field and status received", async () => {
+  it("writes a fresh document with every persisted field and status received", async () => {
     const stub = createStoreStub();
     const store = new WorkoutStore(stub.firestore);
 

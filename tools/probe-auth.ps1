@@ -5,7 +5,7 @@
 .DESCRIPTION
   Confirms the two independent auth checks in app/main.ts still reject unknown
   callers: a wrong path_token and a wrong X-Ingest-Key must each return 404 with
-  an empty body (CONSTRAINTS rule 3, planning/03-ingest-api.md section 5).
+  an empty body (CONSTRAINTS rule 3, docs/reference/ingest-api.md).
 
   Prints status codes and body sizes only. The real path_token is read from
   terraform output into a variable and interpolated into the request URL; it is
@@ -13,7 +13,7 @@
   to paste into an issue or an agent context.
 
 .PARAMETER Service
-  Base URL of the deployed service. Defaults to the Cloud Run URL from T19.
+  Base URL of the deployed service. Defaults to the deployed Cloud Run URL.
 
 .EXAMPLE
   powershell -NoProfile -ExecutionPolicy Bypass -File tools/probe-auth.ps1

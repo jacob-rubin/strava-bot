@@ -1,12 +1,12 @@
 # Local credential files. The deployed service reads these values from
-# Secret Manager (docs/planning/07-config-and-repo-layout.md, section 9);
+# Secret Manager (docs/reference/configuration.md);
 # a local .env exists only for scripts run by hand.
 .env
 .env.*
 !.env.example
 
 # Terraform (docs/decisions/0007-terraform-for-gcp-infra.md). State may hold
-# secret material once T03 adds secret versions, and *.tfvars carries the
+# secret material once secret versions exist, and *.tfvars carries the
 # values passed at apply time; neither belongs in VCS. The provider lock file
 # (.terraform.lock.hcl) is committed on purpose.
 **/.terraform/*

@@ -1,4 +1,4 @@
-/** R-005 companion for app/ingest/workout_timing.ts (§3 duration, §7.4 start time). */
+/** R-005 companion for app/ingest/workout_timing.ts (duration and Strava start time). */
 import { DateTime } from "luxon";
 import { describe, expect, it } from "vitest";
 

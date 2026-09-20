@@ -3,11 +3,11 @@ status: authoritative
 last-updated: 2026-09-19
 ---
 
-← [Index](../PLANNING.md)
+← [Docs index](../README.md)
 
 # Decisions
 
-Short records of choices in [PLANNING.md](../PLANNING.md) that trade something off, so the reasoning survives independently of the paragraph it happens to sit in. Add a new numbered file when a future change reopens one of these or introduces a comparable trade-off — don't edit history, supersede it and link back.
+Short records of choices that trade something off, so the reasoning survives independently of the paragraph it happens to sit in. Add a new numbered file when a future change reopens one of these or introduces a comparable trade-off — don't edit history, supersede it and link back.
 
 - [0001](0001-static-bearer-secret.md) — Static bearer secret instead of OIDC/HMAC for the ingest endpoint
 - [0002](0002-no-strava-read-scope.md) — Request `activity:write` only, no read scope (superseded by 0009, 0010)
@@ -21,5 +21,6 @@ Short records of choices in [PLANNING.md](../PLANNING.md) that trade something o
 - [0010](0010-allow-development-read-calls.md) — Allow Strava read calls, including from `app/`; the AI prohibition stays absolute (supersedes 0002, 0009; filename kept for link stability)
 - [0011](0011-allow-raw-text-debug-logging.md) — Allow `raw_text` debug logging; keep the secret prohibition absolute
 - [0012](0012-minimal-request-log.md) — Log only the payload and the response status; drop the per-request state object
+- [0013](0013-retire-task-runbook-workflow.md) — Retire the task-runbook workflow, the status ledger, and the planning spec
 
-← [Index](../PLANNING.md)
+← [Docs index](../README.md)

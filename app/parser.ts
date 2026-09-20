@@ -11,14 +11,14 @@ import type {
   WorkoutSummary,
 } from "./models.js";
 
-/** Luxon format of `date_line` (§3 grammar). Naive local time, no offset. */
+/** Luxon format of `date_line` (docs/reference/input-contract.md). Naive local. */
 export const DATE_LINE_FORMAT = "cccc, LLLL d, yyyy 'at' h:mm a";
 
 /** Naive ISO-8601 rendering of `started_at`, e.g. `2026-09-09T06:43:00`. */
 const NAIVE_ISO_FORMAT = "yyyy-MM-dd'T'HH:mm:ss";
 
 /**
- * Raised only by the two mandatory lines of rule 1. Everything else in §3
+ * Raised only by the two mandatory lines of rule 1. Everything else in the input contract
  * degrades to a warning or to `kind="unparsed"`.
  */
 export class ParseError extends Error {
@@ -46,7 +46,7 @@ const MULTIPLY = String.raw`[\u00d7x]`;
 const CLOCK = String.raw`\d+:[0-5]\d(?::[0-5]\d)?`;
 
 /**
- * §3 set payload variants, ordered most specific first: `distance_time` before
+ * Set payload variants, ordered most specific first: `distance_time` before
  * `distance` and `time`, and signed `assisted_reps` before `weight_reps`.
  */
 const DISTANCE_TIME = new RegExp(
@@ -144,7 +144,7 @@ export function parseWorkout(text: string): Workout {
   return workout;
 }
 
-/** §3 derived values: per-set volume is `weight × reps`, 0 when either absent. */
+/** Derived value: per-set volume is `weight × reps`, 0 when either absent. */
 export function setVolume(
   set: Pick<WorkoutSet, "weight" | "reps">,
 ): number {
@@ -154,7 +154,7 @@ export function setVolume(
   return set.weight * set.reps;
 }
 
-/** §3 derived values: the three working-set-only totals. */
+/** Derived values: the three working-set-only totals. */
 export type WorkingSetTotals = {
   total_volume: number;
   total_reps: number;
@@ -185,7 +185,7 @@ export function workingSetTotals(
 }
 
 /**
- * §3 derived values: an exercise's working set with the greatest `(weight,
+ * Derived value: an exercise's working set with the greatest `(weight,
  * reps)` pair lexicographically. Exercises with no weight-bearing working set
  * have no top set.
  */
@@ -209,7 +209,7 @@ export function exerciseTopSet(
   }, null);
 }
 
-/** §6: the `dedupe_key` rule-2 seed shared by `dedupe_key` and `content_hash`. */
+/** The `dedupe_key` rule-2 seed shared by `dedupe_key` and `content_hash`. */
 function dedupeSeed(
   workout: Pick<Workout, "started_at" | "exercises">,
 ): string {
@@ -222,7 +222,7 @@ function dedupeSeed(
 }
 
 /**
- * §6: `content_hash` is computed on every ingest so dedup stays correct even
+ * `content_hash` is computed on every ingest so dedup stays correct even
  * if the share-link slug is unstable (ADR 0003).
  */
 export function contentHash(
@@ -235,7 +235,7 @@ export function contentHash(
   return `sha256:${digest}`;
 }
 
-/** §6: `dedupe_key` derivation, rule 1 then rule 2. */
+/** `dedupe_key` derivation (docs/reference/persistence.md), rule 1 then 2. */
 export function dedupeKey(
   workout: Pick<Workout, "share_slug" | "started_at" | "exercises">,
 ): string {
@@ -245,15 +245,15 @@ export function dedupeKey(
   return contentHash(workout);
 }
 
-/** §3 duration: the 4-hour cap above which elapsed falls back. */
+/** Input contract duration: the 4-hour cap above which elapsed falls back. */
 export const ELAPSED_CAP_S = 14_400;
-/** §3 duration: fallback seconds per working set. */
+/** Input contract duration: fallback seconds per working set. */
 const ELAPSED_PER_SET_S = 165;
-/** §3 duration: minimum fallback elapsed. */
+/** Input contract duration: minimum fallback elapsed. */
 const ELAPSED_MIN_S = 600;
 
 /**
- * §3 duration: `elapsed_s` with the two-branch formula.
+ * Input contract duration: `elapsed_s` with the two-branch formula.
  *
  * `receivedAt` is server receipt time converted to the workout's local wall
  * clock, matching the parser's naive `started_at`. `capSeconds` is the
@@ -278,7 +278,7 @@ export function elapsedSeconds(
   return Math.max(ELAPSED_MIN_S, totalSets * ELAPSED_PER_SET_S);
 }
 
-/** Build the §6 `WorkoutSummary` (and per-exercise summaries) from parser output. */
+/** Build the `WorkoutSummary` (and per-exercise summaries) from parser output. */
 export function summarizeWorkout(workout: Workout): WorkoutSummary {
   const totals = workingSetTotals(workout);
 
@@ -303,7 +303,7 @@ export function summarizeWorkout(workout: Workout): WorkoutSummary {
 }
 
 /**
- * Rule 1 / §3 duration: `date_line` is naive local wall clock. It is parsed in
+ * Rule 1 / duration: `date_line` is naive local wall clock. It is parsed in
  * UTC purely so that a DST gap in `LOCAL_TZ` cannot invalidate a timestamp the
  * user really recorded; the result is rendered back without offset or zone.
  */
@@ -336,7 +336,7 @@ function parseExerciseLine(line: string): Exercise {
 }
 
 /**
- * Classify one set payload against the §3 variant table, falling through to
+ * Classify one set payload against the input-contract variant table, falling through to
  * `kind="unparsed"` with the raw payload (rule 9 / constraint 5).
  */
 function buildSet(index: string, payload: string): WorkoutSet {
@@ -365,7 +365,7 @@ function buildSet(index: string, payload: string): WorkoutSet {
     return {
       ...base,
       kind: "assisted_reps",
-      // §3: a negative load means machine assistance; keep the sign verbatim.
+      // A negative load means machine assistance; keep the sign verbatim.
       weight,
       unit: toWeightUnit(group(assisted, 3)),
       reps,
@@ -462,7 +462,7 @@ function skipBlank(lines: readonly string[], from: number): number {
   return index === -1 ? lines.length : index;
 }
 
-/** §3 time payload: `M:SS` or `H:MM:SS` to seconds. */
+/** Input contract time payload: `M:SS` or `H:MM:SS` to seconds. */
 function toSeconds(clock: string): number {
   return clock
     .split(":")
