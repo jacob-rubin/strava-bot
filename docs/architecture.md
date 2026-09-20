@@ -298,38 +298,7 @@ The `content_hash` field exists because rule 1 of the dedupe key rests on the un
 
 ---
 
-## 7. Cost and abuse posture
-
-The endpoint is public at the IAM layer by necessity, so the controls are layered rather than perimeter-based:
-
-| Layer | Control | Resource |
-| --- | --- | --- |
-| Network | HTTPS only, Google-managed cert | Cloud Run default |
-| URL | secret 43-char path segment | `strava-bot-path-token` |
-| Header | `X-Ingest-Key`, constant-time digest compare | `strava-bot-ingest-key` |
-| Size | 64 KiB cap before the body is read | `MAX_BODY_BYTES` |
-| Compute | `--max-instances=3`, `--concurrency=4`, scale to zero | deploy step |
-| Spend | 10 USD/month budget, alerts at 50/90/100% actual + 100% forecast | `google_billing_budget.monthly` |
-| Blast radius | one Strava account, `activity:write` scope | Strava app config |
-
-Expected volume is about five requests a week, so Strava's rate limits (200 per 15 min, 2,000 per day) are never in play — the usage headers are logged only because a runaway loop shows up there first.
-
----
-
-## 8. Deliberately absent
-
-Architecture is as much about what is not here. None of the following exists, and nothing should be built toward it:
-
-- **No AI component anywhere** — no SDK, no model call, no prompt, no credential. Strava API Policy §5.3 forbids Strava data in connection with any AI application, and the absence of an AI component is the entire compliance story ([Constraint 1](CONSTRAINTS.md)).
-- **No Pub/Sub, Cloud Tasks, Cloud Scheduler, or retry queue** — retries are the user tapping Share again ([ADR 0006](decisions/0006-no-retry-queue.md)).
-- **No Cloud Load Balancer, Cloud Armor, VPC, or Serverless VPC connector** — a single public Cloud Run URL is the whole surface.
-- **No Dockerfile** — Google's native buildpacks build the image.
-- **No user table, no multi-tenancy, no media storage** — Strava's API has no media endpoint, and there is exactly one user.
-- **No `gcloud` mutations from a laptop and no Console clicks** — the sole exception is the bootstrap state bucket ([ADR 0007](decisions/0007-terraform-for-gcp-infra.md)).
-
----
-
-## 9. Code to resource mapping
+## 7. Code to resource mapping
 
 ```mermaid
 flowchart LR
@@ -371,4 +340,3 @@ Infrastructure lives in [`terraform/main.tf`](../terraform/main.tf) — project,
 ---
 
 ← [Docs index](README.md) · [Constraints](CONSTRAINTS.md) · [Decisions](decisions/README.md)
-
