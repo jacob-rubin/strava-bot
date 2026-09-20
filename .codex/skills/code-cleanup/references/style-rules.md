@@ -37,9 +37,9 @@ This is the source of truth for cleanup rules. It preserves the durable rules fo
 **Enforceable by linter:** no
 
 ### R-006: Delete reconstructible comments
-**Rationale:** Comments should preserve external knowledge, not restate code.
-**Bad:** A comment that describes the immediately following implementation.
-**Good:** Keep only a spec anchor, numbered constraint, ADR, external-system workaround, or safety boundary, normally on one line.
+**Rationale:** Comments should preserve external knowledge, not restate code or spec prose.
+**Bad:** A comment that describes the immediately following implementation; a file-top module-header block that summarizes the module or restates its spec section or constraints, even when it cites section or constraint numbers — the repository-layout document already maps each module to its spec.
+**Good:** Delete module-header comment blocks outright. For any other comment, keep only a spec anchor, numbered constraint, ADR, external-system workaround, or safety boundary, normally on one line.
 **Enforceable by linter:** no
 
 ### R-007: Fail required invariants explicitly

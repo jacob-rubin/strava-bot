@@ -1,9 +1,3 @@
-/**
- * The workout store as the ingest route needs it: constraint 11 / §11 make a
- * Firestore failure a 500, never a skipped write, so every call site here
- * turns a rejection into {@link InternalError} instead of a branch.
- */
-
 import type { Timestamp } from "@google-cloud/firestore";
 
 import type { HistoryContext, WorkoutSummary } from "../models.js";

@@ -1,20 +1,3 @@
-/**
- * Strong share-text parser: grammar, the nine parsing rules, and every set
- * payload variant of docs/planning/02-input-contract.md (§3).
- *
- * Scope: §3 grammar and derived values. Per-set `volume`, the working-set
- * totals, each exercise's top set, `dedupe_key`, `content_hash`, and
- * `elapsed_s` are computed here (T10 + T11).
- *
- * Two rules shape the control flow below and are not negotiable:
- * - Rule 9 / constraint 5: an unrecognized payload becomes `kind="unparsed"`
- *   with its raw text. The parser never throws on a payload it cannot read.
- * - Rule 1: only the two mandatory header lines can fail a parse.
- *
- * Warnings carry line numbers, never line content, so that a caller logging
- * them cannot leak `raw_text` (constraint 7).
- */
-
 import { createHash } from "node:crypto";
 import { DateTime } from "luxon";
 
@@ -90,18 +73,19 @@ const DISTANCE = new RegExp(`^(${NUMBER})\\s*(mi|km|m|ft)$`, "i");
  */
 export function parseWorkout(text: string): Workout {
   const lines = text.split(/\r\n|\r|\n/);
+  // Constraint 7 safety boundary: warnings carry line numbers, never content.
   const warnings: string[] = [];
 
   // Rule 1: the first two non-blank lines are the header. Rule 2 lets blank
   // lines precede it without meaning anything.
-  let cursor = skipBlank(lines, 0);
-  const titleLine = lines[cursor];
+  const titleCursor = skipBlank(lines, 0);
+  const titleLine = lines[titleCursor];
   if (titleLine === undefined) {
     throw new ParseError("Share text is missing its workout name (line 1).");
   }
 
-  cursor = skipBlank(lines, cursor + 1);
-  const dateLine = lines[cursor];
+  const dateCursor = skipBlank(lines, titleCursor + 1);
+  const dateLine = lines[dateCursor];
   if (dateLine === undefined) {
     throw new ParseError("Share text is missing its start timestamp (line 2).");
   }
@@ -114,10 +98,12 @@ export function parseWorkout(text: string): Workout {
     warnings,
   };
 
-  let current: Exercise | undefined;
+  for (const [i, rawLine] of lines.entries()) {
+    if (i <= dateCursor) {
+      continue;
+    }
 
-  for (let i = cursor + 1; i < lines.length; i += 1) {
-    const line = (lines[i] ?? "").trim();
+    const line = rawLine.trim();
     const lineNumber = i + 1;
 
     // Rule 2: blank lines separate blocks and carry no meaning.
@@ -128,7 +114,7 @@ export function parseWorkout(text: string): Workout {
     // Rule 5: the share link, wherever it appears.
     const link = SHARE_LINK.exec(line);
     if (link !== null) {
-      const slug = link[1] ?? "";
+      const slug = group(link, 1);
       if (workout.share_slug === null) {
         workout.share_slug = slug;
       } else {
@@ -140,19 +126,19 @@ export function parseWorkout(text: string): Workout {
     // Rule 3: a set belongs to the most recent exercise line.
     const set = SET_LINE.exec(line);
     if (set !== null) {
+      const current = workout.exercises.at(-1);
       if (current === undefined) {
         warnings.push(
           `line ${lineNumber}: set line before any exercise line`,
         );
         continue;
       }
-      current.sets.push(buildSet(set[1] ?? "", (set[2] ?? "").trimEnd()));
+      current.sets.push(buildSet(group(set, 1), group(set, 2).trimEnd()));
       continue;
     }
 
     // Rule 4: anything else non-blank starts a new exercise block.
-    current = parseExerciseLine(line);
-    workout.exercises.push(current);
+    workout.exercises.push(parseExerciseLine(line));
   }
 
   return workout;
@@ -169,11 +155,11 @@ export function setVolume(
 }
 
 /** §3 derived values: the three working-set-only totals. */
-export interface WorkingSetTotals {
+export type WorkingSetTotals = {
   total_volume: number;
   total_reps: number;
   total_sets: number;
-}
+};
 
 export function workingSetTotals(
   workout: Pick<Workout, "exercises">,
@@ -206,11 +192,9 @@ export function workingSetTotals(
 export function exerciseTopSet(
   exercise: Pick<Exercise, "sets">,
 ): TopSet | null {
-  let best: TopSet | null = null;
-
-  for (const set of exercise.sets) {
+  return exercise.sets.reduce<TopSet | null>((best, set) => {
     if (set.is_warmup || set.weight === null || set.reps === null) {
-      continue;
+      return best;
     }
 
     if (
@@ -218,11 +202,11 @@ export function exerciseTopSet(
       set.weight > best.weight ||
       (set.weight === best.weight && set.reps > best.reps)
     ) {
-      best = { weight: set.weight, unit: set.unit, reps: set.reps };
+      return { weight: set.weight, unit: set.unit, reps: set.reps };
     }
-  }
 
-  return best;
+    return best;
+  }, null);
 }
 
 /** §6: the `dedupe_key` rule-2 seed shared by `dedupe_key` and `content_hash`. */
@@ -345,8 +329,8 @@ function parseExerciseLine(line: string): Exercise {
   }
 
   return {
-    name: (match[1] ?? "").trim(),
-    equipment: (match[2] ?? "").trim(),
+    name: group(match, 1).trim(),
+    equipment: group(match, 2).trim(),
     sets: [],
   };
 }
@@ -367,23 +351,23 @@ function buildSet(index: string, payload: string): WorkoutSet {
       weight: null,
       unit: null,
       reps: null,
-      duration_s: toSeconds(distanceTime[3] ?? ""),
-      distance: toNumber(distanceTime[1] ?? ""),
-      distance_unit: toDistanceUnit(distanceTime[2] ?? ""),
+      duration_s: toSeconds(group(distanceTime, 3)),
+      distance: toNumber(group(distanceTime, 1)),
+      distance_unit: toDistanceUnit(group(distanceTime, 2)),
     };
   }
 
   const assisted = ASSISTED_REPS.exec(payload);
   if (assisted !== null) {
-    const magnitude = toNumber(assisted[2] ?? "");
-    const weight = assisted[1] === "-" ? -magnitude : magnitude;
-    const reps = toNumber(assisted[4] ?? "");
+    const magnitude = toNumber(group(assisted, 2));
+    const weight = group(assisted, 1) === "-" ? -magnitude : magnitude;
+    const reps = toNumber(group(assisted, 4));
     return {
       ...base,
       kind: "assisted_reps",
       // §3: a negative load means machine assistance; keep the sign verbatim.
       weight,
-      unit: toWeightUnit(assisted[3] ?? ""),
+      unit: toWeightUnit(group(assisted, 3)),
       reps,
       volume: setVolume({ weight, reps }),
       duration_s: null,
@@ -394,13 +378,13 @@ function buildSet(index: string, payload: string): WorkoutSet {
 
   const weightReps = WEIGHT_REPS.exec(payload);
   if (weightReps !== null) {
-    const weight = toNumber(weightReps[1] ?? "");
-    const reps = toNumber(weightReps[3] ?? "");
+    const weight = toNumber(group(weightReps, 1));
+    const reps = toNumber(group(weightReps, 3));
     return {
       ...base,
       kind: "weight_reps",
       weight,
-      unit: toWeightUnit(weightReps[2] ?? ""),
+      unit: toWeightUnit(group(weightReps, 2)),
       reps,
       volume: setVolume({ weight, reps }),
       duration_s: null,
@@ -416,7 +400,7 @@ function buildSet(index: string, payload: string): WorkoutSet {
       kind: "reps",
       weight: null,
       unit: null,
-      reps: toNumber(reps[1] ?? ""),
+      reps: toNumber(group(reps, 1)),
       duration_s: null,
       distance: null,
       distance_unit: null,
@@ -431,7 +415,7 @@ function buildSet(index: string, payload: string): WorkoutSet {
       weight: null,
       unit: null,
       reps: null,
-      duration_s: toSeconds(clock[1] ?? ""),
+      duration_s: toSeconds(group(clock, 1)),
       distance: null,
       distance_unit: null,
     };
@@ -446,8 +430,8 @@ function buildSet(index: string, payload: string): WorkoutSet {
       unit: null,
       reps: null,
       duration_s: null,
-      distance: toNumber(distance[1] ?? ""),
-      distance_unit: toDistanceUnit(distance[2] ?? ""),
+      distance: toNumber(group(distance, 1)),
+      distance_unit: toDistanceUnit(group(distance, 2)),
     };
   }
 
@@ -464,15 +448,21 @@ function buildSet(index: string, payload: string): WorkoutSet {
   };
 }
 
-function skipBlank(lines: string[], from: number): number {
-  let index = from;
-  while (index < lines.length && (lines[index] ?? "").trim() === "") {
-    index += 1;
+/** Invariant: every capture group participates on match; a miss is a parser bug. */
+function group(match: RegExpExecArray, index: number): string {
+  const value = match[index];
+  if (value === undefined) {
+    throw new Error(`parser bug: capture group ${index} did not participate`);
   }
-  return index;
+  return value;
 }
 
-/** `M:SS` or `H:MM:SS` to seconds. */
+function skipBlank(lines: readonly string[], from: number): number {
+  const index = lines.findIndex((line, i) => i >= from && line.trim() !== "");
+  return index === -1 ? lines.length : index;
+}
+
+/** §3 time payload: `M:SS` or `H:MM:SS` to seconds. */
 function toSeconds(clock: string): number {
   return clock
     .split(":")
@@ -484,9 +474,17 @@ function toNumber(raw: string): number {
 }
 
 function toWeightUnit(raw: string): WeightUnit {
-  return raw.toLowerCase() as WeightUnit;
+  const unit = raw.toLowerCase();
+  if (unit === "lb" || unit === "kg") {
+    return unit;
+  }
+  throw new Error(`parser bug: unrecognized weight unit ${unit}`);
 }
 
 function toDistanceUnit(raw: string): DistanceUnit {
-  return raw.toLowerCase() as DistanceUnit;
+  const unit = raw.toLowerCase();
+  if (unit === "mi" || unit === "km" || unit === "m" || unit === "ft") {
+    return unit;
+  }
+  throw new Error(`parser bug: unrecognized distance unit ${unit}`);
 }
