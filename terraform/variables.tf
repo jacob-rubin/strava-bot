@@ -56,16 +56,11 @@ variable "budget_actual_thresholds" {
   default     = [0.5, 0.9, 1.0]
 }
 
-# Sensitive secret material, supplied at apply time from the environment
-# as TF_VAR_strava_client_secret. It has no default on purpose: a default would
-# invite a committed *.tfvars file, which ADR 0007 forbids for secret versions.
 variable "strava_client_secret" {
   description = "Strava API application client secret; pass via TF_VAR_strava_client_secret."
   type        = string
   sensitive   = true
 }
-
-# --- The build-and-deploy pipeline ------------------------------------------
 
 variable "strava_client_id" {
   description = "Strava API application client id; env, not a secret."
@@ -91,9 +86,6 @@ variable "deploy_branch" {
   default     = "main"
 }
 
-# The repository is private, so these two are what let Cloud Build clone it.
-# Like every other secret here they are passed at apply time from the
-# environment; app_installation_id is not sensitive but travels with the token.
 variable "github_app_installation_id" {
   description = "Installation id of the Cloud Build GitHub App on the repo; pass via TF_VAR_github_app_installation_id."
   type        = number
@@ -105,10 +97,6 @@ variable "github_token" {
   sensitive   = true
 }
 
-# Cloud Build, not Terraform, creates the Cloud Run service, so the data source
-# that reads its URL back has nothing to read until the trigger has run once.
-# Leave this at true; pass -var=cloud_run_deployed=false for the first apply on
-# a project where the pipeline has never run.
 variable "cloud_run_deployed" {
   description = "Whether the Cloud Build pipeline has already deployed the Cloud Run service."
   type        = bool
