@@ -37,9 +37,9 @@ This is the source of truth for cleanup rules. It preserves the durable rules fo
 **Enforceable by linter:** no
 
 ### R-006: Delete reconstructible comments
-**Rationale:** Comments should preserve external knowledge, not restate code.
-**Bad:** A comment that describes the immediately following implementation.
-**Good:** Keep only a spec anchor, numbered constraint, ADR, external-system workaround, or safety boundary, normally on one line.
+**Rationale:** Comments should state the business intent (the why) and stay short enough to remain current, never restate code.
+**Bad:** A comment that describes the immediately following implementation, or a multi-line explanation when a brief anchor would do.
+**Good:** Keep only a spec anchor, numbered constraint, ADR, external-system workaround, or safety boundary, in 20 words or fewer.
 **Enforceable by linter:** no
 
 ### R-007: Fail required invariants explicitly
