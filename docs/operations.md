@@ -94,7 +94,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/post-fixture.ps1 -Fres
 
 Neither script prints a secret, so their output is safe to paste into an issue or an agent context.
 
-Reading a 502: `401` from `create_activity` means the refresh succeeded and the write was still refused, which is a scope problem on the stored refresh token rather than an expired token; `400` is a payload problem; `429` is a rate limit.
+Reading a 502: `401` from `structured_upload` means the refresh succeeded and the upload was still refused, which is a scope problem on the stored refresh token rather than an expired token; `400` is a payload problem; `429` is a rate limit. A `token_refresh` stage means the refresh itself was rejected. `POST /uploads` is the only Strava write, so there is no fallback to read past ([ADR 0015](decisions/0015-uploads-only-strava-path.md)); an activity it creates is invisible to the app's own scope and must be deleted by hand on strava.com.
 
 ## Re-parsing stored workouts
 

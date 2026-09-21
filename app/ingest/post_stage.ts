@@ -1,7 +1,7 @@
 import type { ActivityText, WorkoutSummary } from "../models.js";
 import type { ActivityClient } from "../ports/activity_client.js";
 import type {
-  CreateActivityResult,
+  ActivityUploadResult,
   StructuredWorkoutInput,
 } from "../strava.js";
 import { attempt } from "../util/attempt.js";
@@ -14,7 +14,6 @@ export interface PostStageInput {
   readonly store: RequiredWorkoutStore;
   readonly resultDedupeKey: string;
   readonly activityText: ActivityText;
-  readonly startDateLocal: string;
   readonly summary: WorkoutSummary;
   readonly timing: WorkoutTiming;
 }
@@ -24,21 +23,19 @@ export async function postWorkoutActivity({
   store,
   resultDedupeKey,
   activityText,
-  startDateLocal,
   summary,
   timing,
-}: PostStageInput): Promise<CreateActivityResult> {
+}: PostStageInput): Promise<ActivityUploadResult> {
   const created = await attempt(() => {
     const structuredWorkout: StructuredWorkoutInput = {
       start_time_utc: timing.startedAtUtc,
       utc_offset: timing.utcOffsetSeconds,
       exercises: summary.exercises,
     };
-    return strava.createActivity(
+    return strava.uploadActivity(
       {
         name: activityText.title,
         description: activityText.description,
-        start_date_local: startDateLocal,
         elapsed_time: timing.elapsedS,
       },
       structuredWorkout,
@@ -59,9 +56,9 @@ export async function postWorkoutActivity({
     status: "posted",
     strava: {
       activity_id: result.id,
-      upload_id: result.upload_id ?? null,
+      upload_id: result.upload_id,
       url: result.url,
-      method: result.method ?? "activities",
+      method: "uploads",
     },
     error: null,
   });

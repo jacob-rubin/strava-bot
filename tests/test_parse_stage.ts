@@ -10,6 +10,7 @@ vi.mock("../app/parser.js", async (importOriginal) => {
 import {
   InternalError,
   UnparseableWorkoutError,
+  UnuploadableWorkoutError,
 } from "../app/ingest/error.js";
 import { parseWorkoutOrRecordRaw } from "../app/ingest/parse_stage.js";
 import type { RequiredWorkoutStore } from "../app/ingest/required_store.js";
@@ -23,6 +24,18 @@ const VALID_TEXT =
   "\n" +
   "Deadlift (Barbell)\n" +
   "Set 1: 315 lb × 4\n";
+/** Parses cleanly — title and date line — but carries no set for the upload. */
+const NO_SETS_TEXT =
+  "Deadlift day\n" +
+  "Wednesday, September 9, 2026 at 6:43 AM\n" +
+  "\n" +
+  "Deadlift (Barbell)\n";
+const WARMUP_ONLY_TEXT =
+  "Deadlift day\n" +
+  "Wednesday, September 9, 2026 at 6:43 AM\n" +
+  "\n" +
+  "Deadlift (Barbell)\n" +
+  "Set W: 135 lb × 8\n";
 const RECEIVED_AT = DateTime.fromISO("2026-09-09T07:43:00", {
   zone: "America/Chicago",
 });
@@ -119,6 +132,47 @@ describe("parseWorkoutOrRecordRaw", () => {
         receivedAt: RECEIVED_AT,
       }),
     ).rejects.toBeInstanceOf(InternalError);
+    expect(store.received).toEqual([]);
+  });
+
+  // The structured upload is the only Strava path and needs a non-empty sets array.
+  it("persists a parsed but set-less payload under the raw-text hash before rejecting", async () => {
+    const store = new RecordingStore();
+
+    await expect(
+      parseWorkoutOrRecordRaw({
+        store,
+        rawText: NO_SETS_TEXT,
+        receivedAt: RECEIVED_AT,
+      }),
+    ).rejects.toBeInstanceOf(UnuploadableWorkoutError);
+
+    const key = rawTextHash(NO_SETS_TEXT);
+    // Never the workout's own dedupe key: a "received" record there would make
+    // a re-share answer "already posted" with no URL.
+    expect(store.received).toEqual([
+      {
+        dedupe_key: key,
+        content_hash: key,
+        raw_text: NO_SETS_TEXT,
+        parsed: null,
+        started_at: null,
+        elapsed_s: null,
+        received_at: expect.anything(),
+      },
+    ]);
+  });
+
+  it("accepts a warmup-only workout, which still has a set to upload", async () => {
+    const store = new RecordingStore();
+
+    const workout = await parseWorkoutOrRecordRaw({
+      store,
+      rawText: WARMUP_ONLY_TEXT,
+      receivedAt: RECEIVED_AT,
+    });
+
+    expect(workout.exercises[0]?.sets[0]?.is_warmup).toBe(true);
     expect(store.received).toEqual([]);
   });
 });

@@ -25,8 +25,9 @@ import type {
 } from "../app/store.js";
 import {
   StravaApiError,
-  type CreateActivityInput,
-  type CreateActivityResult,
+  type ActivityUploadInput,
+  type ActivityUploadResult,
+  type StructuredWorkoutInput,
 } from "../app/strava.js";
 import { rawTextHash } from "../app/util/ingest.js";
 
@@ -137,17 +138,21 @@ class FakeStore implements WorkoutStoreLike {
 }
 
 class FakeStrava implements ActivityClient {
-  readonly calls: CreateActivityInput[] = [];
-  nextResult: CreateActivityResult = {
+  readonly calls: ActivityUploadInput[] = [];
+  readonly workouts: StructuredWorkoutInput[] = [];
+  nextResult: ActivityUploadResult = {
     id: "1234567890",
     url: "https://www.strava.com/activities/1234567890",
+    upload_id: "987",
   };
   nextError: unknown = null;
 
-  async createActivity(
-    activity: CreateActivityInput,
-  ): Promise<CreateActivityResult> {
+  async uploadActivity(
+    activity: ActivityUploadInput,
+    workout: StructuredWorkoutInput,
+  ): Promise<ActivityUploadResult> {
     this.calls.push(activity);
+    this.workouts.push(workout);
     if (this.nextError !== null) {
       throw this.nextError;
     }
@@ -295,6 +300,25 @@ describe("ingest processing order", () => {
     expect(store.docs.get(store.received[0]?.dedupe_key ?? "")?.raw_text).toBe(raw);
   });
 
+  it("returns 400 for a parsed workout with no sets and never calls Strava", async () => {
+    const { app, store, strava } = harness();
+    const raw =
+      "Deadlift day\n" +
+      "Wednesday, September 9, 2026 at 6:43 AM\n\n" +
+      "Deadlift (Barbell)\n";
+
+    const response = await post(app, { payload: raw });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.body).toBe("no sets to upload");
+    expect(strava.calls).toHaveLength(0);
+
+    // Constraint 6: raw_text survives the rejection so a fixed parser can re-parse.
+    expect(store.received).toHaveLength(1);
+    expect(store.received[0]?.raw_text).toBe(raw);
+    expect(store.docs.has("strong:gvvdfvga")).toBe(false);
+  });
+
   it("posts deterministic activity text containing real workout numbers", async () => {
     const { app, strava } = harness();
 
@@ -308,7 +332,9 @@ describe("ingest processing order", () => {
     expect(call?.description).toContain("Deadlift");
     expect(call?.description).toContain("315 lb x 4");
     expect(call?.description).toContain("3780 total volume");
-    expect(call?.start_date_local).toBe("2026-09-09T06:43:00");
+    // The upload carries the wall clock as UTC plus an offset, not a naive local string.
+    expect(strava.workouts[0]?.start_time_utc).toBe("2026-09-09T11:43:00Z");
+    expect(strava.workouts[0]?.utc_offset).toBe(-18_000);
     // Frozen clock is one hour after the fixture's local start time, so this
     // pins the received-minus-started branch of `elapsedSeconds`.
     expect(call?.elapsed_time).toBe(3_600);
@@ -346,7 +372,7 @@ describe("ingest processing order", () => {
       reason: "Strava rate limit exceeded.",
       usage: null,
       fault: "Rate Limit Exceeded",
-      stage: "create_activity",
+      stage: "structured_upload",
     });
     const { app, store } = harness({ strava });
 
@@ -517,7 +543,7 @@ describe("request logging", () => {
       reason: "provider fault text that belongs in Firestore, not in the log record",
       usage: null,
       fault: "provider fault text that belongs in Firestore, not in the log record",
-      stage: "create_activity",
+      stage: "structured_upload",
     });
     const { app, store } = harness({ strava, log: (r) => records.push(r) });
 
