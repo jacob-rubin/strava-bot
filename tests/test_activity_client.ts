@@ -5,12 +5,14 @@ import { unavailableActivityClient } from "../app/ports/activity_client.js";
 describe("unavailableActivityClient", () => {
   it("rejects instead of silently dropping a post", async () => {
     await expect(
-      unavailableActivityClient().createActivity({
-        name: "Deadlift day",
-        description: "",
-        start_date_local: "2026-09-09T06:43:00",
-        elapsed_time: 3600,
-      }),
+      unavailableActivityClient().uploadActivity(
+        { name: "Deadlift day", description: "", elapsed_time: 3600 },
+        {
+          start_time_utc: "2026-09-09T11:43:00Z",
+          utc_offset: -18_000,
+          exercises: [],
+        },
+      ),
     ).rejects.toThrow("No Strava client was supplied to the app factory.");
   });
 });
