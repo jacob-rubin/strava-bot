@@ -34,8 +34,10 @@ export function defaultStravaClient(settings: Settings): StravaClient {
 
 export function unavailableActivityClient(): ActivityClient {
   return {
-    async createActivity(): Promise<CreateActivityResult> {
-      throw new Error("No Strava client was supplied to the app factory.");
+    createActivity(): Promise<CreateActivityResult> {
+      return Promise.reject(
+        new Error("No Strava client was supplied to the app factory."),
+      );
     },
   };
 }

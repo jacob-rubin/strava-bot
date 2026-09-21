@@ -1,5 +1,3 @@
-/** Captures a thrown failure as a value, so a caller can branch on it with `const`. */
-
 export type Attempt<T> =
   | { readonly ok: true; readonly value: T }
   | { readonly ok: false; readonly error: unknown };

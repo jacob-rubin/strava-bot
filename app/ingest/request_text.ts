@@ -1,3 +1,5 @@
+import { attemptSync } from "../util/attempt.js";
+
 export function requestText(body: unknown, contentType: string | null): string {
   if (typeof body !== "string") {
     return "";
@@ -5,18 +7,16 @@ export function requestText(body: unknown, contentType: string | null): string {
   if (contentType === null || !contentType.toLowerCase().startsWith("application/json")) {
     return body;
   }
-  try {
-    const parsed: unknown = JSON.parse(body);
-    if (
-      typeof parsed === "object" &&
-      parsed !== null &&
-      "text" in parsed &&
-      typeof parsed.text === "string"
-    ) {
-      return parsed.text;
-    }
-  } catch {
-    // Constraint 6: an invalid JSON body is persisted as unparseable text, not rejected.
+  // Constraint 6: an invalid JSON body is persisted as unparseable text, not rejected.
+  const parsed = attemptSync((): unknown => JSON.parse(body));
+  if (
+    parsed.ok &&
+    typeof parsed.value === "object" &&
+    parsed.value !== null &&
+    "text" in parsed.value &&
+    typeof parsed.value.text === "string"
+  ) {
+    return parsed.value.text;
   }
   return body;
 }

@@ -316,11 +316,11 @@ describe("ingest processing order", () => {
 
   it("maps a Strava 429 to 502 with status failed and no partial state", async () => {
     const strava = new FakeStrava();
-    strava.nextError = new StravaApiError(
-      429,
-      "Strava rate limit exceeded.",
-      null,
-    );
+    strava.nextError = new StravaApiError({
+      status: 429,
+      reason: "Strava rate limit exceeded.",
+      usage: null,
+    });
     const { app, store } = harness({ strava });
 
     const response = await post(app, { payload: VALID_SHARE_TEXT });
@@ -341,13 +341,13 @@ describe("ingest processing order", () => {
 
   it("retries a failed Strava post without replacing its idempotency record", async () => {
     const strava = new FakeStrava();
-    strava.nextError = new StravaApiError(
-      429,
-      "Strava rate limit exceeded.",
-      null,
-      "Rate Limit Exceeded",
-      "create_activity",
-    );
+    strava.nextError = new StravaApiError({
+      status: 429,
+      reason: "Strava rate limit exceeded.",
+      usage: null,
+      fault: "Rate Limit Exceeded",
+      stage: "create_activity",
+    });
     const { app, store } = harness({ strava });
 
     const first = await post(app, { payload: VALID_SHARE_TEXT });
@@ -512,13 +512,13 @@ describe("request logging", () => {
   it("logs a 502 and the payload when Strava rejects the post", async () => {
     const records: RequestLog[] = [];
     const strava = new FakeStrava();
-    strava.nextError = new StravaApiError(
-      401,
-      "provider fault text that belongs in Firestore, not in the log record",
-      null,
-      "provider fault text that belongs in Firestore, not in the log record",
-      "create_activity",
-    );
+    strava.nextError = new StravaApiError({
+      status: 401,
+      reason: "provider fault text that belongs in Firestore, not in the log record",
+      usage: null,
+      fault: "provider fault text that belongs in Firestore, not in the log record",
+      stage: "create_activity",
+    });
     const { app, store } = harness({ strava, log: (r) => records.push(r) });
 
     const response = await post(app, { payload: VALID_SHARE_TEXT });

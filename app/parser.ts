@@ -252,6 +252,13 @@ const ELAPSED_PER_SET_S = 165;
 /** Input contract duration: minimum fallback elapsed. */
 const ELAPSED_MIN_S = 600;
 
+export interface ElapsedSecondsInput {
+  readonly startedAt: string;
+  readonly receivedAt: DateTime;
+  readonly totalSets: number;
+  readonly capSeconds?: number;
+}
+
 /**
  * Input contract duration: `elapsed_s` with the two-branch formula.
  *
@@ -259,12 +266,12 @@ const ELAPSED_MIN_S = 600;
  * clock, matching the parser's naive `started_at`. `capSeconds` is the
  * `ELAPSED_CAP_S` bound and can be overridden in tests or by configuration.
  */
-export function elapsedSeconds(
-  startedAt: string,
-  receivedAt: DateTime,
-  totalSets: number,
-  capSeconds: number = ELAPSED_CAP_S,
-): number {
+export function elapsedSeconds({
+  startedAt,
+  receivedAt,
+  totalSets,
+  capSeconds = ELAPSED_CAP_S,
+}: ElapsedSecondsInput): number {
   const zone = receivedAt.zoneName ?? "utc";
   const started = DateTime.fromISO(startedAt, { zone: "utc" }).setZone(zone, {
     keepLocalTime: true,

@@ -259,36 +259,42 @@ describe("derived values", () => {
       zone: "America/Chicago",
     });
 
-    expect(elapsedSeconds(canonical.started_at, received, 12)).toBe(3_600);
+    expect(
+      elapsedSeconds({
+        startedAt: canonical.started_at,
+        receivedAt: received,
+        totalSets: 12,
+      }),
+    ).toBe(3_600);
 
     expect(
-      elapsedSeconds(
-        canonical.started_at,
-        DateTime.fromISO("2026-09-09T06:42:00", {
+      elapsedSeconds({
+        startedAt: canonical.started_at,
+        receivedAt: DateTime.fromISO("2026-09-09T06:42:00", {
           zone: "America/Chicago",
         }),
-        12,
-      ),
+        totalSets: 12,
+      }),
     ).toBe(1_980);
 
     expect(
-      elapsedSeconds(
-        canonical.started_at,
-        DateTime.fromISO("2026-09-10T07:43:00", {
+      elapsedSeconds({
+        startedAt: canonical.started_at,
+        receivedAt: DateTime.fromISO("2026-09-10T07:43:00", {
           zone: "America/Chicago",
         }),
-        12,
-      ),
+        totalSets: 12,
+      }),
     ).toBe(1_980);
 
     expect(
-      elapsedSeconds(
-        canonical.started_at,
-        DateTime.fromISO("2026-09-10T07:43:00", {
+      elapsedSeconds({
+        startedAt: canonical.started_at,
+        receivedAt: DateTime.fromISO("2026-09-10T07:43:00", {
           zone: "America/Chicago",
         }),
-        2,
-      ),
+        totalSets: 2,
+      }),
     ).toBe(600);
   });
 
