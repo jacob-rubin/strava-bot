@@ -1,19 +1,17 @@
-/** Strong-to-Strava ingest app: routes and the processing order of docs/reference/ingest-api.md. */
-
 import { Timestamp } from "@google-cloud/firestore";
 import Fastify, { type FastifyInstance } from "fastify";
 import { DateTime } from "luxon";
 
 import { formatActivityText } from "./activity_text.js";
-import {
-  alreadyPostedResponse,
-  postedResponse,
-} from "./ingest/response_text.js";
 import { ingestFailure, PayloadTooLargeError } from "./ingest/error.js";
 import { parseWorkoutOrRecordRaw } from "./ingest/parse_stage.js";
 import { postWorkoutActivity } from "./ingest/post_stage.js";
 import { requiredStore } from "./ingest/required_store.js";
 import { requestText } from "./ingest/request_text.js";
+import {
+  alreadyPostedResponse,
+  postedResponse,
+} from "./ingest/response_text.js";
 import { deriveWorkoutTiming } from "./ingest/workout_timing.js";
 import type { RequestLog } from "./logging.js";
 import { contentHash, dedupeKey, summarizeWorkout } from "./parser.js";
@@ -68,10 +66,10 @@ export function createApp({
   app.post<{ Params: IngestParams }>("/ingest/:path_token", {
     // docs/reference/ingest-api.md: one line per ingest request, carrying the
     // payload and the status it produced. The hook is route-scoped, so a
+    // health check logs nothing.
     onResponse: (request, reply, done) => {
       const record: RequestLog = { status: reply.statusCode };
-      // health check logs nothing.
-    // Constraint 3: a bad auth gets the bare status counter and no request
+      // Constraint 3: a bad auth gets the bare status counter and no request
       // data. Constraint 7 / ADR 0011: every other request logs its payload.
       if (reply.statusCode !== 404 && typeof request.body === "string") {
         record.raw_text = requestText(

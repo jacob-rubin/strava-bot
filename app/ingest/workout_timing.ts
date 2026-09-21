@@ -1,5 +1,3 @@
-/** Duration and Strava start-time derivation for one parsed workout. */
-
 import { Timestamp } from "@google-cloud/firestore";
 import { DateTime } from "luxon";
 
@@ -42,11 +40,11 @@ export function deriveWorkoutTiming({
     startedAt: Timestamp.fromDate(startedAtLocal.toJSDate()),
     startedAtUtc,
     utcOffsetSeconds: startedAtLocal.offset * 60,
-    elapsedS: elapsedSeconds(
-      workout.started_at,
+    elapsedS: elapsedSeconds({
+      startedAt: workout.started_at,
       receivedAt,
-      summary.total_sets,
-      settings.elapsedCapS,
-    ),
+      totalSets: summary.total_sets,
+      capSeconds: settings.elapsedCapS,
+    }),
   };
 }

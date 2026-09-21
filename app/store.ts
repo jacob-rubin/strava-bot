@@ -7,10 +7,13 @@ import {
 } from "@google-cloud/firestore";
 
 import type {
+  DistanceUnit,
+  Exercise,
   ExerciseHistory,
   ExerciseSummary,
   HistoryContext,
   TopSet,
+  WeightUnit,
   Workout,
   WorkoutSet,
   WorkoutSummary,
@@ -209,7 +212,7 @@ export class WorkoutStore {
       return;
     }
 
-    const parsed = (data?.["parsed"] ?? null) as Workout | null;
+    const parsed = asNullableWorkout(data?.["parsed"]);
     const startedAt = asNullableTimestamp(data?.["started_at"], "started_at");
     if (parsed === null || startedAt === null) {
       return;
@@ -506,13 +509,13 @@ function toStoredWorkout(data: Record<string, unknown>): StoredWorkout {
     dedupe_key: asString(data["dedupe_key"], "dedupe_key"),
     content_hash: asString(data["content_hash"], "content_hash"),
     raw_text: asString(data["raw_text"], "raw_text"),
-    parsed: (data["parsed"] ?? null) as Workout | null,
+    parsed: asNullableWorkout(data["parsed"]),
     started_at: asNullableTimestamp(data["started_at"], "started_at"),
     elapsed_s: asNullableNumber(data["elapsed_s"]),
     received_at: asTimestamp(data["received_at"], "received_at"),
     title: asNullableString(data["title"]),
     description: asNullableString(data["description"]),
-    strava: (data["strava"] ?? null) as StravaRecord | null,
+    strava: asNullableStravaRecord(data["strava"]),
     status: asStatus(data["status"]),
     error: asNullableString(data["error"]),
     attempts: asNumber(data["attempts"], "attempts"),
@@ -568,6 +571,196 @@ function asRecentEntries(value: unknown): HistoryRecentEntry[] {
       volume: asNumber(record["volume"], "recent.volume"),
     };
   });
+}
+
+function asRecord(value: unknown, field: string): Record<string, unknown> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(
+      `stored document has a malformed record in required field "${field}"`,
+    );
+  }
+  return value as Record<string, unknown>;
+}
+
+function asBoolean(value: unknown, field: string): boolean {
+  if (typeof value !== "boolean") {
+    throw new Error(
+      `stored document is missing required boolean field "${field}"`,
+    );
+  }
+  return value;
+}
+
+function asStringArray(value: unknown, field: string): string[] {
+  if (!Array.isArray(value)) {
+    throw new Error(
+      `stored document is missing required array field "${field}"`,
+    );
+  }
+  return value.map((entry) => asString(entry, field));
+}
+
+function asWeightUnit(value: unknown): WeightUnit {
+  if (value === "lb" || value === "kg") {
+    return value;
+  }
+  throw new Error(
+    `stored document has an unknown value in required field "set.unit"`,
+  );
+}
+
+function asDistanceUnit(value: unknown): DistanceUnit {
+  if (value === "mi" || value === "km" || value === "m" || value === "ft") {
+    return value;
+  }
+  throw new Error(
+    `stored document has an unknown value in required field "set.distance_unit"`,
+  );
+}
+
+function asNullableStravaRecord(value: unknown): StravaRecord | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  const record = asRecord(value, "strava");
+  return {
+    activity_id: asNullableString(record["activity_id"]),
+    upload_id: asNullableString(record["upload_id"]),
+    url: asNullableString(record["url"]),
+    method: asNullableString(record["method"]),
+  };
+}
+
+function asNullableWorkout(value: unknown): Workout | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  const record = asRecord(value, "parsed");
+  return {
+    workout_name: asString(record["workout_name"], "parsed.workout_name"),
+    started_at: asString(record["started_at"], "parsed.started_at"),
+    exercises: asExercises(record["exercises"]),
+    share_slug: asNullableString(record["share_slug"]),
+    warnings: asStringArray(record["warnings"], "parsed.warnings"),
+  };
+}
+
+function asExercises(value: unknown): Exercise[] {
+  if (!Array.isArray(value)) {
+    throw new Error(
+      `stored document is missing required array field "parsed.exercises"`,
+    );
+  }
+  return value.map((entry) => {
+    const record = asRecord(entry, "parsed.exercises[]");
+    return {
+      name: asString(record["name"], "parsed.exercises[].name"),
+      equipment: asNullableString(record["equipment"]),
+      sets: asWorkoutSets(record["sets"]),
+    };
+  });
+}
+
+function asWorkoutSets(value: unknown): WorkoutSet[] {
+  if (!Array.isArray(value)) {
+    throw new Error(
+      `stored document is missing required array field "parsed.exercises[].sets"`,
+    );
+  }
+  return value.map((entry) => asWorkoutSet(entry));
+}
+
+function asWorkoutSet(value: unknown): WorkoutSet {
+  const record = asRecord(value, "parsed.exercises[].sets[]");
+  const base = {
+    index: asString(record["index"], "set.index"),
+    is_warmup: asBoolean(record["is_warmup"], "set.is_warmup"),
+    volume: asNumber(record["volume"], "set.volume"),
+  };
+  switch (record["kind"]) {
+    case "weight_reps":
+      return {
+        ...base,
+        kind: "weight_reps",
+        weight: asNumber(record["weight"], "set.weight"),
+        unit: asWeightUnit(record["unit"]),
+        reps: asNumber(record["reps"], "set.reps"),
+        duration_s: null,
+        distance: null,
+        distance_unit: null,
+      };
+    case "assisted_reps":
+      return {
+        ...base,
+        kind: "assisted_reps",
+        weight: asNumber(record["weight"], "set.weight"),
+        unit: asWeightUnit(record["unit"]),
+        reps: asNumber(record["reps"], "set.reps"),
+        duration_s: null,
+        distance: null,
+        distance_unit: null,
+      };
+    case "reps":
+      return {
+        ...base,
+        kind: "reps",
+        weight: null,
+        unit: null,
+        reps: asNumber(record["reps"], "set.reps"),
+        duration_s: null,
+        distance: null,
+        distance_unit: null,
+      };
+    case "time":
+      return {
+        ...base,
+        kind: "time",
+        weight: null,
+        unit: null,
+        reps: null,
+        duration_s: asNumber(record["duration_s"], "set.duration_s"),
+        distance: null,
+        distance_unit: null,
+      };
+    case "distance":
+      return {
+        ...base,
+        kind: "distance",
+        weight: null,
+        unit: null,
+        reps: null,
+        duration_s: null,
+        distance: asNumber(record["distance"], "set.distance"),
+        distance_unit: asDistanceUnit(record["distance_unit"]),
+      };
+    case "distance_time":
+      return {
+        ...base,
+        kind: "distance_time",
+        weight: null,
+        unit: null,
+        reps: null,
+        duration_s: asNumber(record["duration_s"], "set.duration_s"),
+        distance: asNumber(record["distance"], "set.distance"),
+        distance_unit: asDistanceUnit(record["distance_unit"]),
+      };
+    case "unparsed":
+      return {
+        ...base,
+        kind: "unparsed",
+        raw: asString(record["raw"], "set.raw"),
+        weight: null,
+        unit: null,
+        reps: null,
+        duration_s: null,
+        distance: null,
+        distance_unit: null,
+      };
+    default:
+      throw new Error(
+        `stored document has an unknown value in required field "set.kind"`,
+      );
+  }
 }
 
 function asString(value: unknown, field: string): string {

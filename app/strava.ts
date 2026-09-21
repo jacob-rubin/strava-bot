@@ -69,19 +69,21 @@ export type StravaFailureStage =
   | "create_activity"
   | "structured_upload";
 
+export interface StravaApiErrorOptions {
+  readonly status: number;
+  readonly reason: string;
+  readonly usage: StravaUsage | null;
+  readonly fault?: string;
+  readonly stage?: StravaFailureStage;
+}
+
 export class StravaApiError extends Error {
   readonly status: number;
   readonly usage: StravaUsage | null;
   readonly fault?: string;
   readonly stage?: StravaFailureStage;
 
-  constructor(
-    status: number,
-    reason: string,
-    usage: StravaUsage | null,
-    fault?: string,
-    stage?: StravaFailureStage,
-  ) {
+  constructor({ status, reason, usage, fault, stage }: StravaApiErrorOptions) {
     super(reason);
     this.name = "StravaApiError";
     this.status = status;
@@ -395,13 +397,13 @@ export class StravaClient {
         await response.json().catch(() => null),
         response.status,
       );
-      throw new StravaApiError(
-        response.status,
-        "Strava token refresh failed: " + reason,
-        usageFrom(response.headers),
-        reason,
-        "token_refresh",
-      );
+      throw new StravaApiError({
+        status: response.status,
+        reason: "Strava token refresh failed: " + reason,
+        usage: usageFrom(response.headers),
+        fault: reason,
+        stage: "token_refresh",
+      });
     }
 
     const body = objectRecord(await response.json().catch(() => null));
@@ -419,13 +421,12 @@ export class StravaClient {
         : "";
 
     if (accessToken === "" || !Number.isFinite(expiresAtRaw)) {
-      throw new StravaApiError(
-        response.status,
-        "Strava token refresh response was missing required fields.",
-        usageFrom(response.headers),
-        undefined,
-        "token_refresh",
-      );
+      throw new StravaApiError({
+        status: response.status,
+        reason: "Strava token refresh response was missing required fields.",
+        usage: usageFrom(response.headers),
+        stage: "token_refresh",
+      });
     }
 
     if (
@@ -492,13 +493,13 @@ export class StravaClient {
     if (response.status === 429) {
       const usage = usageFrom(response.headers);
       logUsageLine(this.#log, "upload-structured", response.status, usage);
-      throw new StravaApiError(
-        429,
-        "Strava rate limit exceeded.",
+      throw new StravaApiError({
+        status: 429,
+        reason: "Strava rate limit exceeded.",
         usage,
-        "Rate Limit Exceeded",
-        "structured_upload",
-      );
+        fault: "Rate Limit Exceeded",
+        stage: "structured_upload",
+      });
     }
 
     if (!isSuccess(response.status)) {
@@ -508,13 +509,13 @@ export class StravaClient {
         response.status,
       );
       logUsageLine(this.#log, "upload-structured", response.status, usage);
-      throw new StravaApiError(
-        response.status,
+      throw new StravaApiError({
+        status: response.status,
         reason,
         usage,
-        reason,
-        "structured_upload",
-      );
+        fault: reason,
+        stage: "structured_upload",
+      });
     }
 
     const usage = usageFrom(response.headers);
@@ -522,13 +523,12 @@ export class StravaClient {
     const body = await response.json().catch(() => null);
     const uploadId = extractUploadId(body);
     if (uploadId === null) {
-      throw new StravaApiError(
-        response.status,
-        "Strava structured upload response was missing an upload id.",
+      throw new StravaApiError({
+        status: response.status,
+        reason: "Strava structured upload response was missing an upload id.",
         usage,
-        undefined,
-        "structured_upload",
-      );
+        stage: "structured_upload",
+      });
     }
 
     return this.#pollUpload(uploadId);
@@ -565,13 +565,13 @@ export class StravaClient {
     const usage = usageFrom(response.headers);
     if (response.status === 429) {
       logUsageLine(this.#log, "upload-poll", response.status, usage);
-      throw new StravaApiError(
-        429,
-        "Strava rate limit exceeded.",
+      throw new StravaApiError({
+        status: 429,
+        reason: "Strava rate limit exceeded.",
         usage,
-        "Rate Limit Exceeded",
-        "structured_upload",
-      );
+        fault: "Rate Limit Exceeded",
+        stage: "structured_upload",
+      });
     }
     if (!isSuccess(response.status)) {
       const reason = parseFaultReason(
@@ -579,24 +579,23 @@ export class StravaClient {
         response.status,
       );
       logUsageLine(this.#log, "upload-poll", response.status, usage);
-      throw new StravaApiError(
-        response.status,
+      throw new StravaApiError({
+        status: response.status,
         reason,
         usage,
-        reason,
-        "structured_upload",
-      );
+        fault: reason,
+        stage: "structured_upload",
+      });
     }
 
     const body = await response.json().catch(() => null);
     if (extractUploadError(body) !== null) {
-      throw new StravaApiError(
-        response.status,
-        "Strava structured upload processing failed.",
+      throw new StravaApiError({
+        status: response.status,
+        reason: "Strava structured upload processing failed.",
         usage,
-        undefined,
-        "structured_upload",
-      );
+        stage: "structured_upload",
+      });
     }
 
     const activityId = extractActivityId(body);
@@ -645,13 +644,13 @@ export class StravaClient {
     if (response.status === 429) {
       const usage = usageFrom(response.headers);
       logUsageLine(this.#log, "create-activity", response.status, usage);
-      throw new StravaApiError(
-        429,
-        "Strava rate limit exceeded.",
+      throw new StravaApiError({
+        status: 429,
+        reason: "Strava rate limit exceeded.",
         usage,
-        "Rate Limit Exceeded",
-        "create_activity",
-      );
+        fault: "Rate Limit Exceeded",
+        stage: "create_activity",
+      });
     }
 
     if (!isSuccess(response.status)) {
@@ -661,13 +660,13 @@ export class StravaClient {
         response.status,
       );
       logUsageLine(this.#log, "create-activity", response.status, usage);
-      throw new StravaApiError(
-        response.status,
+      throw new StravaApiError({
+        status: response.status,
         reason,
         usage,
-        reason,
-        "create_activity",
-      );
+        fault: reason,
+        stage: "create_activity",
+      });
     }
 
     const usage = usageFrom(response.headers);
