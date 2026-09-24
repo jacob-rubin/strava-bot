@@ -52,12 +52,13 @@ The body is a single plain-text line, short enough to read in an iOS notificatio
 | 200 | `posted: Deadlift day — 12 sets, 19,650 lb · strava.com/activities/1234567890` |
 | 200 | `already posted: strava.com/activities/1234567890` |
 | 400 | `not a Strong workout` |
+| 400 | `no sets to upload` |
 | 413 | `payload too large` |
 | 404 | *(empty)* |
 | 502 | `strava rejected: <reason>` |
 | 500 | `internal error` |
 
-When Strava does not yield an activity id, the URL is omitted from the line rather than invented ([strava](strava.md#creating-the-activity)).
+A successful upload always yields an activity id — the poll only returns once Strava reports one ([strava](strava.md#creating-the-activity)) — so the `posted:` line always carries the link. The `already posted:` line reads its URL back from Firestore and omits it rather than inventing one if the stored record has none.
 
 ## `GET /health`
 
@@ -72,11 +73,12 @@ Not `/healthz`: Google's frontend answers that path itself on `*.run.app` and ne
 | Bad auth | 404, empty body, nothing logged beyond a status counter |
 | Oversized body | 413, rejected before the body is read |
 | Unparseable text | 400; **still persist `raw_text`** with `status="received"` |
+| Parsed, but no sets | 400 `no sets to upload`; **still persist `raw_text`** under the raw-text hash, before any Strava call |
 | Duplicate | 200 with the existing activity URL; no formatting, no Strava call |
 | Strava 401 | Refresh once — re-reading the refresh token from Secret Manager — retry once, then 502 |
 | Strava 429 | 502, no retry, usage headers logged |
 | Strava 4xx (other) | 502 with the Fault reason; `status="failed"`, `error` recorded |
-| Structured upload fails | Fall back to `POST /activities` in the same request |
+| Upload `error` or poll timeout | 502; `status="failed"`. There is no fallback path ([ADR 0015](../decisions/0015-uploads-only-strava-path.md)) |
 | Firestore unavailable | 500. Do **not** post to Strava without a durable idempotency record ([Constraint 11](../CONSTRAINTS.md)) |
 
 Retries are the user's job — tapping Share again is idempotent by construction. There is no background retry queue ([ADR 0006](../decisions/0006-no-retry-queue.md)).

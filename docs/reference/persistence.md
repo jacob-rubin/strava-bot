@@ -31,7 +31,7 @@ Whether Strong's slug is stable across repeated shares of the same workout is un
   received_at:   timestamp
   title:         string | null
   description:   string | null
-  strava:        { activity_id, upload_id, url, method } | null
+  strava:        { activity_id, upload_id, url, method } | null   # method is always "uploads"
   status:        "received" | "posted" | "failed"
   error:         string | null
   attempts:      int
@@ -54,7 +54,9 @@ Rolling per-exercise state for deterministic description context, keyed by base 
 
 Each update raises `best_e1rm` and `best_top_set` against the stored values, bumps `last_performed`, and appends to `recent`, which is capped at its last 10 entries. Only working sets with both a positive weight and at least one rep contribute an e1rm estimate.
 
-Exercise-name to Strava-taxonomy mapping is deliberately absent; the structured-upload path sends null categories rather than guessing ([strava](strava.md#structured-uploads)).
+`method` is retained at its documented name and is always `"uploads"`: `POST /activities` is gone ([ADR 0015](../decisions/0015-uploads-only-strava-path.md)), and dropping a persisted field would be a data migration rather than a cleanup. Records written before that change still carry `"activities"`.
+
+Exercise-name to Strava-taxonomy mapping lives outside Firestore, in the curated [exercise-type map](strava.md#the-exercise-type-map); no taxonomy value is persisted here.
 
 ## Data model for activity text
 

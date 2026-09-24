@@ -79,7 +79,7 @@ A negative weight in `assisted_reps` means machine assistance; the sign is prese
 
 ## Derived values
 
-- `volume` per set is `weight × reps`, `0` when either is absent. Units stay as the set logged them; **nothing is normalized** for display or activity text. Conversion to kilograms happens only in the structured-upload path ([strava](strava.md#structured-uploads)).
+- `volume` per set is `weight × reps`, `0` when either is absent. Units stay as the set logged them; **nothing is normalized** for display or activity text. Conversion to kilograms happens only when the upload file is built ([strava](strava.md#creating-the-activity)).
 - `total_volume`, `total_reps`, and `total_sets` sum **working sets only**.
 - `top_set` per exercise is the working set with the greatest `(weight, reps)` lexicographically.
 
@@ -94,7 +94,7 @@ elapsed = received_at - started_at        if 0 < delta <= ELAPSED_CAP_S (14400)
 
 `received_at` is server receipt time converted to the workout's local wall clock. The four-hour cap stops a workout shared days later from becoming a multi-day activity.
 
-**Timezone.** `date_line` is naive local time. A single fixed `LOCAL_TZ` (`America/Chicago`) is configured rather than inferred, and `start_date_local` is sent to Strava as the naive ISO-8601 string.
+**Timezone.** `date_line` is naive local time. A single fixed `LOCAL_TZ` (`America/Chicago`) is configured rather than inferred. The upload carries the wall clock as the file's `start_time` (UTC, with a `Z` suffix) plus `utc_offset` in seconds, which is what Strava's JSON schema takes; no naive local string is sent.
 
 ## Expected parser behaviour
 

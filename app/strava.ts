@@ -1,7 +1,7 @@
+import { resolveExerciseType } from "./exercises/exercise_type.js";
 import type { ExerciseSummary, WorkoutSet } from "./models.js";
 
 const STRAVA_OAUTH_TOKEN_URL = "https://www.strava.com/api/v3/oauth/token";
-const STRAVA_ACTIVITIES_URL = "https://www.strava.com/api/v3/activities";
 const STRAVA_UPLOADS_URL = "https://www.strava.com/api/v3/uploads";
 const REFRESH_THRESHOLD_MS = 300_000;
 const UPLOAD_POLL_INTERVAL_MS = 1_000;
@@ -34,20 +34,17 @@ export interface StravaSettings {
   reloadStravaRefreshToken?(): Promise<string>;
 }
 
-export interface CreateActivityInput {
+export interface ActivityUploadInput {
   name: string;
-  description?: string;
-  start_date_local: string;
+  description: string;
   elapsed_time: number;
-  trainer?: number;
-  commute?: number;
 }
 
-export interface CreateActivityResult {
-  id: string | null;
-  url: string | null;
-  method?: "activities" | "uploads";
-  upload_id?: string | null;
+/** The poll only returns on a non-null activity_id, so neither field can be absent. */
+export interface ActivityUploadResult {
+  id: string;
+  url: string;
+  upload_id: string;
 }
 
 export interface StructuredWorkoutInput {
@@ -64,10 +61,7 @@ export interface StravaUsage {
 }
 
 /** A safe operational failure category that excludes Strava response text. */
-export type StravaFailureStage =
-  | "token_refresh"
-  | "create_activity"
-  | "structured_upload";
+export type StravaFailureStage = "token_refresh" | "structured_upload";
 
 export interface StravaApiErrorOptions {
   readonly status: number;
@@ -103,7 +97,6 @@ export interface StravaClientOptions {
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
   log?: (line: string) => void;
-  useStructuredUpload?: boolean;
 }
 
 interface TokenSnapshot {
@@ -183,16 +176,6 @@ function addSeconds(isoUtc: string, seconds: number): string {
   return new Date(startMs + seconds * 1_000).toISOString();
 }
 
-/** Preserve the source name while the authoritative taxonomy mapping is deferred. */
-function exerciseType(name: string): string {
-  const normalized = name
-    .trim()
-    .replace(/[^A-Za-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .toUpperCase();
-  return normalized === "" ? "UNSPECIFIED" : normalized;
-}
-
 function uploadWeight(set: WorkoutSet): number | undefined {
   if (set.weight === null || set.unit === null) {
     return undefined;
@@ -208,11 +191,9 @@ function structuredSetPayload(
   startTimeUtc: string,
 ): Record<string, string | number | null> {
   const payload: Record<string, string | number | null> = {
-    exercise_type: exerciseType(exercise.name),
+    exercise_type: resolveExerciseType(exercise.name, exercise.equipment)
+      .exercise_type,
     start_time: startTimeUtc,
-    // The taxonomy mapping is deferred; do not guess categories from a name.
-    category: null,
-    category_subtype: null,
   };
   const weight = uploadWeight(set);
   if (weight !== undefined) {
@@ -227,10 +208,38 @@ function structuredSetPayload(
   return payload;
 }
 
+function exerciseLabel(exercise: ExerciseSummary): string {
+  return exercise.equipment === null
+    ? exercise.name
+    : exercise.name + " (" + exercise.equipment + ")";
+}
+
+/** Constraint 7: a Strong exercise name is the owner's own input, never a credential. */
+function logUnmappedExercises(
+  log: (line: string) => void,
+  exercises: readonly ExerciseSummary[],
+): void {
+  const unmapped = new Set<string>();
+  for (const exercise of exercises) {
+    if (!resolveExerciseType(exercise.name, exercise.equipment).mapped) {
+      unmapped.add(exerciseLabel(exercise));
+    }
+  }
+  if (unmapped.size === 0) {
+    return;
+  }
+  log(
+    'strava structured-upload unmapped-exercises="' +
+      [...unmapped].join("|") +
+      '"',
+  );
+}
+
 /** Strava requires source-ordered set times, monotonic and in range. */
 function buildStructuredFile(
-  activity: CreateActivityInput,
+  activity: ActivityUploadInput,
   workout: StructuredWorkoutInput,
+  log: (line: string) => void,
 ): string {
   if (!Number.isFinite(activity.elapsed_time) || activity.elapsed_time <= 0) {
     throw new Error("Structured upload requires a positive elapsed_time.");
@@ -249,6 +258,11 @@ function buildStructuredFile(
   if (sets.length === 0) {
     throw new Error("Structured upload requires at least one set.");
   }
+
+  logUnmappedExercises(
+    log,
+    sets.map(({ exercise }) => exercise),
+  );
 
   return JSON.stringify({
     version: "1.0",
@@ -269,23 +283,22 @@ function buildStructuredFile(
 }
 
 function buildStructuredForm(
-  activity: CreateActivityInput,
+  activity: ActivityUploadInput,
   workout: StructuredWorkoutInput,
+  log: (line: string) => void,
 ): FormData {
   const form = new FormData();
   form.append(
     "file",
-    new Blob([buildStructuredFile(activity, workout)], {
+    new Blob([buildStructuredFile(activity, workout, log)], {
       type: "application/json",
     }),
     "workout.json",
   );
   form.append("data_type", "json");
   form.append("name", activity.name);
-  if (activity.description !== undefined) {
-    form.append("description", activity.description);
-  }
-  form.append("activity_type", "WeightTraining");
+  form.append("description", activity.description);
+  form.append("sport_type", "WeightTraining");
   return form;
 }
 
@@ -334,7 +347,6 @@ export class StravaClient {
   readonly #now: () => number;
   readonly #sleep: (ms: number) => Promise<void>;
   readonly #log: (line: string) => void;
-  readonly #useStructuredUpload: boolean;
   #token: TokenSnapshot | undefined;
   #refreshToken: string | undefined;
 
@@ -346,7 +358,6 @@ export class StravaClient {
       options.sleep ??
       ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
     this.#log = options.log ?? ((line: string) => console.log(line));
-    this.#useStructuredUpload = options.useStructuredUpload ?? false;
   }
 
   async getAccessToken(
@@ -458,26 +469,11 @@ export class StravaClient {
     return value;
   }
 
-  async createActivity(
-    activity: CreateActivityInput,
-    structuredWorkout?: StructuredWorkoutInput,
-  ): Promise<CreateActivityResult> {
-    if (this.#useStructuredUpload && structuredWorkout !== undefined) {
-      try {
-        return await this.uploadStructured(activity, structuredWorkout);
-      } catch {
-        // docs/reference/strava.md: a structured failure falls back in the same request.
-        this.#log("strava structured-upload fallback=create-activity");
-      }
-    }
-    return this.#createActivityPrimary(activity);
-  }
-
-  async uploadStructured(
-    activity: CreateActivityInput,
+  async uploadActivity(
+    activity: ActivityUploadInput,
     workout: StructuredWorkoutInput,
-  ): Promise<CreateActivityResult> {
-    const form = buildStructuredForm(activity, workout);
+  ): Promise<ActivityUploadResult> {
+    const form = buildStructuredForm(activity, workout, this.#log);
     const send = async (): Promise<StravaResponseLike> => {
       const accessToken = await this.getAccessToken();
       return this.#postForm(
@@ -534,7 +530,7 @@ export class StravaClient {
     return this.#pollUpload(uploadId);
   }
 
-  async #pollUpload(uploadId: string): Promise<CreateActivityResult> {
+  async #pollUpload(uploadId: string): Promise<ActivityUploadResult> {
     const deadline = this.#now() + UPLOAD_POLL_TIMEOUT_MS;
     return this.#pollUploadAttempt(uploadId, deadline, false);
   }
@@ -543,7 +539,7 @@ export class StravaClient {
     uploadId: string,
     deadline: number,
     refreshedAfterUnauthorized: boolean,
-  ): Promise<CreateActivityResult> {
+  ): Promise<ActivityUploadResult> {
     const accessToken = await this.getAccessToken();
     const response = await this.#get(
       STRAVA_UPLOADS_URL + "/" + uploadId,
@@ -603,7 +599,6 @@ export class StravaClient {
       return {
         id: activityId,
         url: activityUrl(activityId),
-        method: "uploads",
         upload_id: uploadId,
       };
     }
@@ -613,87 +608,6 @@ export class StravaClient {
     }
     await this.#sleep(UPLOAD_POLL_INTERVAL_MS);
     return this.#pollUploadAttempt(uploadId, deadline, refreshedAfterUnauthorized);
-  }
-
-  async #createActivityPrimary(
-    activity: CreateActivityInput,
-  ): Promise<CreateActivityResult> {
-    const send = async (): Promise<StravaResponseLike> => {
-      const accessToken = await this.getAccessToken();
-      const body: Record<string, string | number> = {
-        name: activity.name,
-        sport_type: "WeightTraining",
-        type: "WeightTraining",
-        start_date_local: activity.start_date_local,
-        elapsed_time: activity.elapsed_time,
-      };
-      if (activity.description !== undefined) {
-        body.description = activity.description;
-      }
-      if (activity.trainer !== undefined) {
-        body.trainer = activity.trainer;
-      }
-      if (activity.commute !== undefined) {
-        body.commute = activity.commute;
-      }
-      return this.#post(STRAVA_ACTIVITIES_URL, body, "create-activity", accessToken);
-    };
-
-    const response = await this.#sendWithTokenRefresh(send, "create-activity");
-
-    if (response.status === 429) {
-      const usage = usageFrom(response.headers);
-      logUsageLine(this.#log, "create-activity", response.status, usage);
-      throw new StravaApiError({
-        status: 429,
-        reason: "Strava rate limit exceeded.",
-        usage,
-        fault: "Rate Limit Exceeded",
-        stage: "create_activity",
-      });
-    }
-
-    if (!isSuccess(response.status)) {
-      const usage = usageFrom(response.headers);
-      const reason = parseFaultReason(
-        await response.json().catch(() => null),
-        response.status,
-      );
-      logUsageLine(this.#log, "create-activity", response.status, usage);
-      throw new StravaApiError({
-        status: response.status,
-        reason,
-        usage,
-        fault: reason,
-        stage: "create_activity",
-      });
-    }
-
-    const usage = usageFrom(response.headers);
-    logUsageLine(this.#log, "create-activity", response.status, usage);
-
-    const body = objectRecord(await response.json().catch(() => null));
-    const id =
-      body !== null && typeof body.id === "number"
-        ? String(body.id)
-        : body !== null && typeof body.id === "string"
-          ? body.id
-          : null;
-
-    if (id !== null) {
-      return { id, url: activityUrl(id) };
-    }
-
-    const location = response.headers.get("location");
-    if (location !== null && location !== "") {
-      const match = /\/activities\/(\d+)\s*$/.exec(location);
-      if (match?.[1] !== undefined) {
-        const locationId = match[1];
-        return { id: locationId, url: activityUrl(locationId) };
-      }
-    }
-
-    return { id: null, url: null };
   }
 
   async #sendWithTokenRefresh(

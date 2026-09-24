@@ -81,6 +81,21 @@ The Shortcut does no parsing, formatting, or branching; all logic is server-side
 
 The key lives as plaintext in the Shortcut and syncs via iCloud — never share the shortcut. Rotation is a new secret version plus editing one field.
 
+## Verifying the upload before a deploy
+
+```powershell
+npx tsx scripts/probe_upload_json.ts --dry-run
+npx tsx scripts/probe_upload_json.ts
+```
+
+[`scripts/probe_upload_json.ts`](../scripts/probe_upload_json.ts) sends the canonical fixture through the service's own parse, timing, formatting, and `StravaClient.uploadActivity`, straight to Strava from your machine — so it checks the exact payload a deploy would send, before that deploy. The fixture's date line is rewritten to 45 minutes ago on every run, so a repeat is never rejected as a duplicate.
+
+`--dry-run` reads no secret and sends nothing: it prints each fixture exercise's mapped `exercise_type`, then the multipart fields (`data_type`, `sport_type`, `name`, `description`, whether `activity_type` is present) and the full upload file. The live run needs the local `.env` and Secret Manager access, **creates a real Strava activity**, and persists a rotated refresh token like the service does ([Constraint 8](CONSTRAINTS.md)).
+
+A live run prints `accepted`, the activity link, and a checklist to confirm on strava.com: Weight Training as the sport type, the four fixture exercises, 12 sets, and weights in kilograms. An upload-created activity returns 404 on API `GET` and `DELETE`, so this visual check is the only readback — then delete the activity by hand. A failure prints only `rejected: stage=… status=…`, read as described below. Full Strava responses go to a JSONL file in the temp directory, with the token response redacted ([Constraint 2](CONSTRAINTS.md)).
+
+The probe runs locally before a deploy; [Checking a deployment](#checking-a-deployment) and the `strava-bot-e2e-check` skill post to the deployed `/ingest` after one.
+
 ## Checking a deployment
 
 ```powershell
@@ -94,7 +109,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/post-fixture.ps1 -Fres
 
 Neither script prints a secret, so their output is safe to paste into an issue or an agent context.
 
-Reading a 502: `401` from `create_activity` means the refresh succeeded and the write was still refused, which is a scope problem on the stored refresh token rather than an expired token; `400` is a payload problem; `429` is a rate limit.
+Reading a 502: `401` from `structured_upload` means the refresh succeeded and the upload was still refused, which is a scope problem on the stored refresh token rather than an expired token; `400` is a payload problem; `429` is a rate limit. A `token_refresh` stage means the refresh itself was rejected. `POST /uploads` is the only Strava write, so there is no fallback to read past ([ADR 0015](decisions/0015-uploads-only-strava-path.md)); an activity it creates is invisible to the app's own scope and must be deleted by hand on strava.com.
 
 ## Re-parsing stored workouts
 
