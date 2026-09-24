@@ -13,9 +13,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/post-fixture.ps1 -Fres
 
 Flags: `-Fixture <name>` picks any file under `tests/fixtures` (an unknown name lists them), `-DryRun` prints the exact payload and sends nothing, `-IngestUrl` overrides the endpoint.
 
-## Before a live run
+## Live by default
 
-A successful run **creates a real Strava activity** on the owner's account. This is a write test, not a probe. Confirm the user wants a live post immediately before running without `-DryRun`; use `-DryRun` freely, since it reads no credential and sends nothing.
+Invoking this skill is the request for a live post: run the command above straight away, without a preliminary dry run and without asking for confirmation. A successful run **creates a real Strava activity** on the owner's account, so say so in the report and give the activity URL so it can be deleted if unwanted.
+
+Use `-DryRun` only when the user asks for one. It reads no credential and sends nothing.
+
+The script resolves the ingest URL from local Terraform state, which exists only in the main checkout, not in a Codex worktree. From a worktree, read `terraform output -raw ingest_url` in the main checkout's `terraform/` directory into `$env:STRAVA_BOT_INGEST_URL` within the same command, without printing it, and then run the script.
 
 For the read-only check that the auth gate still rejects unknown callers, use `tools/probe-auth.ps1` instead.
 

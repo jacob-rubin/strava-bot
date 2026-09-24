@@ -103,18 +103,24 @@ if ($DryRun) {
 
 if (-not $IngestUrl) { $IngestUrl = $env:STRAVA_BOT_INGEST_URL }
 if (-not $IngestUrl) {
+  # Windows PowerShell 5.1 turns a native command's stderr into a terminating
+  # error under "Stop", even with 2>$null, which would skip the message below.
+  $ErrorActionPreference = "Continue"
   Push-Location (Join-Path $PSScriptRoot "..\terraform")
   try { $IngestUrl = terraform output -raw ingest_url 2>$null } finally { Pop-Location }
+  $ErrorActionPreference = "Stop"
 }
 if (-not $IngestUrl -or $IngestUrl -notmatch "/ingest/") {
-  Write-Output "ERROR: no ingest URL. Set STRAVA_BOT_INGEST_URL or run where terraform state is available."
+  Write-Output "ERROR: no ingest URL. 'terraform output' found no state in terraform/ (a Codex worktree has none; the state lives in the main checkout). Set STRAVA_BOT_INGEST_URL or run from the main checkout."
   exit 1
 }
 
 # Resolve the key. Read into a variable only; never echoed.
 $ingestKey = $env:STRAVA_BOT_INGEST_KEY
 if (-not $ingestKey) {
+  $ErrorActionPreference = "Continue"
   $ingestKey = gcloud secrets versions access latest --secret=$KeySecret --project=$Project 2>$null
+  $ErrorActionPreference = "Stop"
 }
 if (-not $ingestKey) {
   Write-Output "ERROR: could not read the ingest key. Set STRAVA_BOT_INGEST_KEY or authenticate gcloud."
