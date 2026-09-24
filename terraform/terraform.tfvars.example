@@ -1,0 +1,12 @@
+# Copy to terraform.tfvars (gitignored) and fill in. Unset variables keep
+# their defaults in variables.tf. The two secrets, strava_client_secret and
+# github_token, do not belong here: tools/terraform-apply.ps1 loads them from
+# Secret Manager for each run.
+
+project_id      = "strava-bot-508419"
+region          = "us-central1"
+billing_account = "XXXXXX-XXXXXX-XXXXXX"
+
+# Cloud Build GitHub App installation id, visible on the "github" connection:
+#   gcloud builds connections describe github --region us-central1 --format="value(githubConfig.appInstallationId)"
+github_app_installation_id = 0

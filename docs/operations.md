@@ -27,11 +27,16 @@ npm run dev       # tsx app/server.ts, binds 0.0.0.0:8080
 ## Infrastructure
 
 ```bash
-cd terraform
-terraform apply
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/terraform-apply.ps1 plan
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/terraform-apply.ps1
 ```
 
-Everything except the Cloud Run service is declared here — project, APIs, Firestore, secrets and their IAM, the runtime and build service accounts, the Artifact Registry repository, the GitHub build connection, the deploy trigger, and the billing budget. Values that must never be committed are passed through the environment at apply time: `TF_VAR_strava_client_secret`, `TF_VAR_github_token`, and `TF_VAR_github_app_installation_id`.
+Everything except the Cloud Run service is declared in [`terraform/`](../terraform/) — project, APIs, Firestore, secrets and their IAM, the runtime and build service accounts, the Artifact Registry repository, the GitHub build connection, the deploy trigger, and the billing budget.
+
+[`tools/terraform-apply.ps1`](../tools/terraform-apply.ps1) runs `terraform plan` or `terraform apply` (the default, which still asks for confirmation) in `terraform/`, running `terraform init` first on a fresh checkout; any further arguments pass through to Terraform. Its inputs come from two places:
+
+- `terraform/terraform.tfvars` holds the values that are not secret but are never committed: `project_id`, `billing_account`, and `github_app_installation_id`. It is gitignored; create it from [`terraform/terraform.tfvars.example`](../terraform/terraform.tfvars.example).
+- `strava_client_secret` and `github_token` are read from their Secret Manager secrets into `TF_VAR_*` environment variables for the one run and removed afterwards. They are never written to disk or printed, and because they are the values Terraform last wrote, an apply does not create new secret versions. To rotate either one, set its `TF_VAR_*` variable by hand and run `terraform apply` directly.
 
 Useful outputs: `terraform output service_url`, and `terraform output -raw ingest_url` for the `path_token` form of the endpoint used by the Shortcut. The latter is marked sensitive — read it into a variable, never into a commit or an agent transcript.
 
