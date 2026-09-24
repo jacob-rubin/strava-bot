@@ -49,7 +49,7 @@ The access token is cached in memory keyed by `expires_at` and refreshed when fe
 
 `POST /uploads` with a structured JSON set file is the only path; there is no `POST /activities` call and no fallback ([ADR 0015](../decisions/0015-uploads-only-strava-path.md)). Strava renders native per-set detail from the uploaded file, and the deterministic title and description ride along on the multipart form.
 
-The accepted shape was established by [`scripts/probe_upload_json.ts`](../../scripts/probe_upload_json.ts) against the live API:
+The accepted shape was first established against the live API by [`scripts/probe_upload_json.ts`](../../scripts/probe_upload_json.ts), which now re-checks it before a deploy by sending the canonical fixture through the shipped client ([operations](../operations.md#verifying-the-upload-before-a-deploy)):
 
 - The field is `data_type` with the value `json`. `dataType=json` is rejected at intake with a 400 naming the data-type field.
 - The uploaded file is a JSON envelope: `version` `"1.0"`, `start_time`, `utc_offset`, `elapsed_time`, and a non-empty `sets` array whose members use `exercise_type` — not the `set_type` / `category` field names documented for the FIT set message.

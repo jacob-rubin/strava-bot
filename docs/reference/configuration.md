@@ -54,7 +54,7 @@ strava-bot/
       secret_comparison.ts  # constant-time secret comparison
   scripts/
     authorize.ts            # one-time OAuth
-    probe_upload_json.ts    # structured-upload probe
+    probe_upload_json.ts    # live upload of the canonical fixture through the shipped client
     reparse.ts              # re-parse stored raw_text after parser changes
   tests/
     fixtures/*.txt          # share-text samples, including the canonical fixture
