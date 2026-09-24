@@ -1,0 +1,3 @@
+interface:
+  display_name: "Git PR Handoff"
+  short_description: "Commit, push, and open a PR"
