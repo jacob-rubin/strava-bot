@@ -165,7 +165,6 @@ export function createApp({
         store: workouts,
         resultDedupeKey,
         activityText,
-        startDateLocal: workout.started_at,
         summary,
         timing,
       });

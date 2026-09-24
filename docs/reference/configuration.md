@@ -10,7 +10,6 @@
 | `STRAVA_CLIENT_SECRET` | Secret Manager | `strava-client-secret` |
 | `STRAVA_REFRESH_TOKEN` | Secret Manager | `strava-refresh-token`; **written back** on rotation |
 | `LOCAL_TZ` | env | default `America/Chicago` |
-| `STRAVA_USE_STRUCTURED_UPLOAD` | env | default `false`; must be `true` or `false` |
 | `MAX_BODY_BYTES` | env | default `65536`; positive integer |
 | `ELAPSED_CAP_S` | env | default `14400`; positive integer |
 | `PORT` | env | default `8080`; supplied by Cloud Run |
@@ -31,8 +30,11 @@ strava-bot/
     models.ts               # Workout, Exercise, WorkoutSet, summaries
     store.ts                # Firestore: workouts, history
     activity_text.ts        # deterministic title + description formatter
-    strava.ts               # tokens, createActivity, uploadStructured
+    strava.ts               # tokens, uploadActivity, upload polling
     config.ts               # env + Secret Manager
+    exercises/              # the Strong-to-Strava exercise taxonomy
+      exercise_type.ts      # name + equipment to a Strava exercise_type
+      exercise_type_map.json # the curated map; authored data, not inferred
     ingest/                 # named steps and helpers for the ingest sequence
       error.ts              # HTTP-facing ingest error types
       request_text.ts       # content-type-aware request body extraction
@@ -52,10 +54,11 @@ strava-bot/
       secret_comparison.ts  # constant-time secret comparison
   scripts/
     authorize.ts            # one-time OAuth
-    probe_upload_json.ts    # structured-upload probe
+    probe_upload_json.ts    # live upload of the canonical fixture through the shipped client
     reparse.ts              # re-parse stored raw_text after parser changes
   tests/
     fixtures/*.txt          # share-text samples, including the canonical fixture
+    fixtures/strava_exercise_types.json  # Strava's documented exercise_type enum
     test_*.ts               # one suite per module
   terraform/
     main.tf                 # project, APIs, Firestore, secrets, IAM, build pipeline, budget
@@ -84,7 +87,9 @@ Runtime dependencies are `fastify`, `@google-cloud/firestore`, `@google-cloud/se
 | `dev` | `tsx app/server.ts` |
 | `start` | `node --enable-source-maps dist/app/server.js` |
 
-Vitest includes `tests/test_*.ts`. TypeScript is configured with `strict: true`, `noUncheckedIndexedAccess: true`, Node-compatible ESM, `rootDir: "."`, and `outDir: "dist"`. The entrypoint binds `0.0.0.0` on `process.env.PORT ?? 8080`, which is what makes `npm start` work under Cloud Run and Google's Node.js buildpack.
+Vitest includes `tests/test_*.ts`. TypeScript is configured with `strict: true`, `noUncheckedIndexedAccess: true`, `resolveJsonModule: true`, Node-compatible ESM, `rootDir: "."`, and `outDir: "dist"`. The entrypoint binds `0.0.0.0` on `process.env.PORT ?? 8080`, which is what makes `npm start` work under Cloud Run and Google's Node.js buildpack.
+
+`resolveJsonModule` is what lets `app/exercises/exercise_type.ts` import its map with `with { type: "json" }`. `tsc` copies the imported JSON into `dist/app/exercises/` alongside the emitted `.js`, so the deployed `npm start` resolves it — a JSON data file under `app/` needs no separate copy step.
 
 Adding a module under `app/` means adding its `tests/test_<module>.ts` and updating the layout above in the same change.
 

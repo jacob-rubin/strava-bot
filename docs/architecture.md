@@ -32,7 +32,7 @@ flowchart LR
     run -->|"status line, 200/400/413/404/502/500"| notif
     run <-->|"workouts + history"| fs
     run <-->|"read secrets, add rotated token version"| sm
-    run -->|"POST /oauth/token, POST /activities"| strava
+    run -->|"POST /oauth/token, POST /uploads, GET /uploads/{id}"| strava
 ```
 
 The Shortcut has no crypto primitives, so it cannot mint an OIDC token — the endpoint is unauthenticated at the Cloud Run IAM layer and authenticated in the application by a static bearer secret plus a secret URL path segment ([ADR 0001](decisions/0001-static-bearer-secret.md)).
@@ -141,8 +141,8 @@ sequenceDiagram
     Note right of FS: raw_text is stored even on a 400
     CR->>FS: 6. read history/{exercise_name} for context
     CR->>CR: 7. format title + description locally,<br/>deterministic, no network
-    CR->>ST: 8. POST /activities (name, sport_type, type,<br/>start_date_local, elapsed_time, description)
-    ST-->>CR: 201 — body may be empty; id comes from<br/>the body or the Location header
+    CR->>ST: 8. POST /uploads (data_type=json, sport_type,<br/>name, description, structured set file)
+    ST-->>CR: 201 upload id, then GET /uploads/{id} every 1s<br/>until activity_id, error, or a 30s timeout
     CR->>FS: 9. persist strava.{activity_id,url}, status="posted",<br/>update history/{exercise_name}
     CR-->>SC: 200 "posted: ... · strava.com/activities/123"
 ```
@@ -223,7 +223,7 @@ flowchart LR
     r2 --> k4
     r3 --> fs[("Firestore<br/>workouts · history")]
 
-    env["Plain env vars, not secrets:<br/>STRAVA_CLIENT_ID · LOCAL_TZ<br/>STRAVA_USE_STRUCTURED_UPLOAD<br/>MAX_BODY_BYTES · ELAPSED_CAP_S"]
+    env["Plain env vars, not secrets:<br/>STRAVA_CLIENT_ID · LOCAL_TZ<br/>MAX_BODY_BYTES · ELAPSED_CAP_S"]
 ```
 
 **Refresh-token rotation** is the one place the service writes to Secret Manager. Strava access tokens live 6 hours, so the service refreshes on essentially every invocation, and the response's `refresh_token` may differ from the one sent. Dropping a rotated token locks the integration out permanently and forces a manual re-authorization.
@@ -287,7 +287,7 @@ erDiagram
 ```mermaid
 stateDiagram-v2
     [*] --> received: raw_text persisted before any Strava call
-    received --> posted: success from POST /activities, history updated
+    received --> posted: success from POST /uploads, history updated
     received --> failed: Strava 4xx or 429, error recorded
     posted --> posted: repeat Share returns 200 already posted
     failed --> received: user taps Share again, attempts incremented

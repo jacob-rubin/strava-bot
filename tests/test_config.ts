@@ -39,14 +39,13 @@ function createClientStub() {
 }
 
 describe("loadSettings", () => {
-  it("applies all four documented defaults", () => {
+  it("applies all three documented defaults", () => {
     const settings = loadSettings({
       env: { STRAVA_CLIENT_ID: "278290" },
       secretClient: createClientStub(),
     });
 
     expect(settings.localTz).toBe("America/Chicago");
-    expect(settings.stravaUseStructuredUpload).toBe(false);
     expect(settings.maxBodyBytes).toBe(65_536);
     expect(settings.elapsedCapS).toBe(14_400);
   });
@@ -56,7 +55,6 @@ describe("loadSettings", () => {
       env: {
         STRAVA_CLIENT_ID: "278290",
         LOCAL_TZ: "UTC",
-        STRAVA_USE_STRUCTURED_UPLOAD: "true",
         MAX_BODY_BYTES: "1024",
         ELAPSED_CAP_S: "7200",
       },
@@ -65,7 +63,6 @@ describe("loadSettings", () => {
 
     expect(settings.stravaClientId).toBe("278290");
     expect(settings.localTz).toBe("UTC");
-    expect(settings.stravaUseStructuredUpload).toBe(true);
     expect(settings.maxBodyBytes).toBe(1024);
     expect(settings.elapsedCapS).toBe(7200);
   });

@@ -1,75 +1,64 @@
-import { appendFileSync } from "node:fs";
+import { appendFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadEnvFile } from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { loadSettings } from "../app/config.js";
-import { StravaClient, type StravaSettings } from "../app/strava.js";
+import { DateTime } from "luxon";
+
+import { formatActivityText } from "../app/activity_text.js";
+import { loadSettings, type Settings } from "../app/config.js";
+import { resolveExerciseType } from "../app/exercises/exercise_type.js";
+import { deriveWorkoutTiming } from "../app/ingest/workout_timing.js";
+import type { ExerciseSummary, HistoryContext, WorkoutSummary } from "../app/models.js";
+import { DATE_LINE_FORMAT, parseWorkout, summarizeWorkout } from "../app/parser.js";
+import {
+  StravaApiError,
+  StravaClient,
+  type ActivityUploadInput,
+  type ActivityUploadResult,
+  type StravaFetch,
+  type StravaResponseLike,
+  type StravaSettings,
+  type StructuredWorkoutInput,
+} from "../app/strava.js";
 
 /**
- * One-shot probe for the structured-upload field name and JSON support:
- * does POST /uploads accept a JSON strength-training file, and is the
- * multipart field named 'data_type' or 'dataType'? See docs/reference/strava.md.
+ * Pre-deploy check of the shipped upload path: the canonical fixture goes
+ * through the service's own parse, timing, formatting, and
+ * StravaClient.uploadActivity, so one live run exercises exactly what a deploy
+ * will send. See docs/operations.md and docs/reference/strava.md.
  *
- * The probe posts one minimal JSON set body per candidate field name, polls
- * GET /uploads/{id} to a terminal state, deletes any activity it creates, and
- * prints a verdict per field name. It is disposable scaffolding (ADR 0004),
- * not part of the service.
+ * An upload-created activity 404s on API GET and DELETE, so the probe can only
+ * confirm Strava accepted the upload; how it rendered is checked by eye on
+ * strava.com, and the activity is then deleted by hand.
  *
- * CONSTRAINTS rule 2: every raw Strava response — including the read payloads
- * from polling — goes to a JSONL file outside the repo, and only authored
- * verdict lines are printed. Rule 7: no secret is ever printed; the access
- * token lives only inside request headers.
+ * Constraint 2: every Strava response body goes to a JSONL file outside the
+ * repo, and only authored lines are printed. Constraint 7: the token response
+ * body is redacted before it is written, and request bodies and headers are
+ * never written at all.
  */
 
-const UPLOADS_URL = "https://www.strava.com/api/v3/uploads";
-const ACTIVITIES_URL = "https://www.strava.com/api/v3/activities";
+const FIXTURE_URL = new URL("../tests/fixtures/canonical.txt", import.meta.url);
+const PROBE_TITLE_PREFIX = "[probe] ";
+const PROBE_START_MINUTES_AGO = 45;
+const POUNDS_TO_KILOGRAMS = 0.45359237;
+const DRY_RUN_CREDENTIAL = "dry-run";
+const NO_HISTORY: HistoryContext = { per_exercise: {}, pr_flags: {} };
 
-const FIELD_NAMES = ["data_type", "dataType"] as const;
-type FieldName = (typeof FIELD_NAMES)[number];
-
-const POLL_INTERVAL_MS = 1_500;
-const POLL_TIMEOUT_MS = 30_000;
-
-const PROBE_ELAPSED_TIME_S = 300;
-const PROBE_EXERCISE_TYPE = "BENCH_PRESS_GENERIC";
-
-/**
- * An error whose message was authored in this file and is therefore safe to
- * print. Anything else — including a StravaApiError carrying a Strava fault
- * string — is reported generically (CONSTRAINTS rules 2 and 7).
- */
+/** A failure whose message was authored in this file and is safe to print. */
 class ProbeError extends Error {}
 
-interface AttemptResult {
-  fieldName: FieldName;
-  /** A definite verdict was reached; an inconclusive attempt fails the probe. */
-  definite: boolean;
-  /** Strava accepted the JSON upload and turned it into an activity. */
-  accepted: boolean;
-  verdict: string;
+/** Thrown by the dry-run fetch once the upload form is printed; not a failure. */
+class DryRunComplete extends Error {}
+
+interface ProbeUpload {
+  readonly summary: WorkoutSummary;
+  readonly activity: ActivityUploadInput;
+  readonly workout: StructuredWorkoutInput;
 }
 
-type PollResult =
-  | { kind: "activity"; activityId: string }
-  | { kind: "error"; error: string }
-  | { kind: "timeout" };
-
-interface ProbeDeps {
-  accessToken: string;
-  payloadLogPath: string;
-}
-
-function logPayload(
-  path: string,
-  entry: {
-    attempt: string;
-    kind: "upload_response" | "poll_response" | "delete_response";
-    httpStatus: number;
-    responseBody: unknown;
-  },
-): void {
+function appendLog(path: string, entry: Record<string, unknown>): void {
   appendFileSync(
     path,
     JSON.stringify({ ts: new Date().toISOString(), ...entry }) + "\n",
@@ -77,8 +66,7 @@ function logPayload(
   );
 }
 
-async function parseBody(response: Response): Promise<unknown> {
-  const text = await response.text().catch(() => "");
+function parseBodyText(text: string): unknown {
   if (text === "") {
     return null;
   }
@@ -89,310 +77,259 @@ async function parseBody(response: Response): Promise<unknown> {
   }
 }
 
-/**
- * The JSON body posted as the upload file. The envelope and set fields follow
- * the 'JSON - Strength Training (Limited)' section of Strava's uploads
- * documentation — note that its set objects use 'exercise_type', not the
- * 'set_type'/'category' field names documented for the FIT set message and
- * the changelog summary. Each call embeds the current time so the two
- * attempts upload distinct files and cannot dedupe against each other.
- */
-function buildProbeFile(): string {
-  const startIso = new Date().toISOString();
-  const utcOffsetSeconds = -new Date().getTimezoneOffset() * 60;
-  return JSON.stringify({
-    version: "1.0",
-    start_time: startIso,
-    utc_offset: utcOffsetSeconds,
-    elapsed_time: PROBE_ELAPSED_TIME_S,
-    creator: { name: "strava-bot upload probe" },
-    sets: [
-      {
-        exercise_type: PROBE_EXERCISE_TYPE,
-        repetitions: 10,
-        weight: 60,
-        start_time: startIso,
-      },
-    ],
-  });
+function isTokenPath(path: string): boolean {
+  return path.endsWith("/oauth/token");
 }
 
-function buildForm(fieldName: FieldName): FormData {
-  const form = new FormData();
-  form.append(
-    "file",
-    new Blob([buildProbeFile()], { type: "application/json" }),
-    "probe.json",
-  );
-  form.append(fieldName, "json");
-  form.append("name", "strava-bot upload probe (" + fieldName + ")");
-  form.append(
-    "description",
-    "One-shot probe for open item 3; deleted automatically on success.",
-  );
-  form.append("external_id", "upload-probe-" + fieldName + "-" + Date.now());
-  form.append("activity_type", "WeightTraining");
-  return form;
-}
-
-/**
- * Bucket a Strava upload-processing error into an authored label, so the raw
- * error string itself never has to leave the payload log (CONSTRAINTS rule 2).
- */
-function classifyUploadError(error: string): string {
-  if (/data_?type/i.test(error)) {
-    return "error names the data-type field";
-  }
-  if (/duplicate/i.test(error)) {
-    return "error indicates a duplicate submission";
-  }
-  if (/format|parse|invalid|corrupt|process/i.test(error)) {
-    return "error indicates the file content was rejected";
-  }
-  return "error text not classified (see payload log)";
-}
-
-/** Same idea for a rejected intake response, whose fault body may hint at why. */
-function classifyIntakeFault(body: unknown): string {
-  const text = typeof body === "string" ? body : JSON.stringify(body ?? "");
-  if (/data_?type/i.test(text)) {
-    return "response names the data-type field";
-  }
-  if (/file/i.test(text)) {
-    return "response names the file";
-  }
-  return "response body not classified (see payload log)";
-}
-
-function extractUploadId(body: unknown): string | null {
-  if (body === null || typeof body !== "object") {
-    return null;
-  }
-  const id = (body as Record<string, unknown>).id;
-  if (typeof id === "number" && Number.isFinite(id)) {
-    return String(id);
-  }
-  if (typeof id === "string" && id !== "") {
-    return id;
-  }
-  return null;
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function pollUpload(
-  uploadId: string,
-  fieldName: FieldName,
-  deps: ProbeDeps,
-): Promise<PollResult> {
-  const deadline = Date.now() + POLL_TIMEOUT_MS;
-  for (;;) {
-    const response = await fetch(UPLOADS_URL + "/" + uploadId, {
-      headers: { authorization: "Bearer " + deps.accessToken },
-    });
-    const body = await parseBody(response);
-    logPayload(deps.payloadLogPath, {
-      attempt: fieldName,
-      kind: "poll_response",
-      httpStatus: response.status,
-      responseBody: body,
-    });
-
-    if (response.status === 401 || response.status === 403) {
-      throw new ProbeError(
-        "Strava rejected the access token while polling; the probe cannot run.",
-      );
-    }
-
-    if (body !== null && typeof body === "object") {
-      const record = body as Record<string, unknown>;
-      if (typeof record.error === "string" && record.error !== "") {
-        return { kind: "error", error: record.error };
-      }
-      const activityId = record.activity_id;
-      if (typeof activityId === "number" && Number.isFinite(activityId)) {
-        return { kind: "activity", activityId: String(activityId) };
-      }
-      if (typeof activityId === "string" && activityId !== "") {
-        return { kind: "activity", activityId };
-      }
-    }
-
-    if (Date.now() >= deadline) {
-      return { kind: "timeout" };
-    }
-    await sleep(POLL_INTERVAL_MS);
-  }
-}
-
-/**
- * Returns true when the activity is gone. Never throws: cleanup is best-effort.
- * Observed 2026-09-17: the probe's own create 404'd on DELETE (and GET)
- * immediately and persistently after the upload reported success — an activity
- * whose visibility keeps it out of the app's scope (e.g. a private athlete
- * default) is not deletable through the API and needs manual removal; the
- * caller's verdict line says so and names the id for exactly that case.
- */
-async function deleteActivity(
-  activityId: string,
-  fieldName: FieldName,
-  deps: ProbeDeps,
-): Promise<boolean> {
-  const response = await fetch(ACTIVITIES_URL + "/" + activityId, {
-    method: "DELETE",
-    headers: { authorization: "Bearer " + deps.accessToken },
-  });
-  logPayload(deps.payloadLogPath, {
-    attempt: fieldName,
-    kind: "delete_response",
-    httpStatus: response.status,
-    responseBody: await parseBody(response),
-  });
-  return response.status >= 200 && response.status < 300;
-}
-
-async function probeFieldName(
-  fieldName: FieldName,
-  deps: ProbeDeps,
-): Promise<AttemptResult> {
-  const rejected = (verdict: string): AttemptResult => ({
-    fieldName,
-    definite: true,
-    accepted: false,
-    verdict,
-  });
-
-  const response = await fetch(UPLOADS_URL, {
-    method: "POST",
-    headers: { authorization: "Bearer " + deps.accessToken },
-    body: buildForm(fieldName),
-  });
-  const body = await parseBody(response);
-  logPayload(deps.payloadLogPath, {
-    attempt: fieldName,
-    kind: "upload_response",
-    httpStatus: response.status,
-    responseBody: body,
-  });
-
-  if (response.status === 401 || response.status === 403) {
-    throw new ProbeError(
-      "Strava rejected the access token at intake; the probe cannot run.",
-    );
-  }
-  if (response.status === 429) {
-    throw new ProbeError("Strava rate-limited the probe; re-run later.");
-  }
-  if (response.status < 200 || response.status >= 300) {
-    return rejected(
-      "rejected at intake (HTTP " + response.status + "; " +
-        classifyIntakeFault(body) + ")",
-    );
-  }
-
-  const uploadId = extractUploadId(body);
-  if (uploadId === null) {
-    return {
-      fieldName,
-      definite: false,
-      accepted: false,
-      verdict:
-        "inconclusive — intake returned HTTP " + response.status +
-        " but no upload id",
-    };
-  }
-
-  const poll = await pollUpload(uploadId, fieldName, deps);
-  if (poll.kind === "timeout") {
-    return {
-      fieldName,
-      definite: false,
-      accepted: false,
-      verdict:
-        "inconclusive — no terminal state within " +
-        POLL_TIMEOUT_MS / 1000 + "s",
-    };
-  }
-  if (poll.kind === "error") {
-    return rejected(
-      "rejected during processing (" + classifyUploadError(poll.error) + ")",
-    );
-  }
-
-  const deleted = await deleteActivity(poll.activityId, fieldName, deps);
+function responseLike(status: number, headers: Headers, text: string): StravaResponseLike {
   return {
-    fieldName,
-    definite: true,
-    accepted: true,
-    verdict: deleted
-      ? "accepted — activity created and deleted"
-      : "accepted — activity created; AUTOMATIC DELETE FAILED, remove activity " +
-        poll.activityId + " manually",
+    status,
+    headers: { get: (name) => headers.get(name) },
+    json: () => Promise.resolve(JSON.parse(text) as unknown),
   };
 }
 
-async function main(): Promise<void> {
-  loadEnvFile();
-  const settings = loadSettings();
-  // Same Settings-to-StravaSettings adapter as app/server.ts: reusing the client
-  // gets token caching and rotated-refresh-token persistence (rule 8) for free.
+/** The canonical fixture, re-dated so each run is new to Strava's duplicate check. */
+function buildProbeUpload(settings: Settings): ProbeUpload {
+  const receivedAt = DateTime.now().setZone(settings.localTz);
+  const dateLine = receivedAt
+    .minus({ minutes: PROBE_START_MINUTES_AGO })
+    .setLocale("en-US")
+    .toFormat(DATE_LINE_FORMAT);
+  const lines = readFileSync(FIXTURE_URL, "utf8").split(/\r?\n/);
+  if (lines.length < 2) {
+    throw new ProbeError("The canonical fixture has no date line to replace.");
+  }
+  lines[1] = dateLine;
+
+  const parsed = parseWorkout(lines.join("\n"));
+  const summary = summarizeWorkout(parsed);
+  const timing = deriveWorkoutTiming({
+    workout: parsed,
+    summary,
+    receivedAt,
+    settings,
+  });
+  const text = formatActivityText(summary, NO_HISTORY);
+
+  return {
+    summary,
+    activity: {
+      name: PROBE_TITLE_PREFIX + text.title,
+      description: text.description,
+      elapsed_time: timing.elapsedS,
+    },
+    workout: {
+      start_time_utc: timing.startedAtUtc,
+      utc_offset: timing.utcOffsetSeconds,
+      exercises: summary.exercises,
+    },
+  };
+}
+
+function exerciseLabel(exercise: ExerciseSummary): string {
+  return exercise.equipment === null
+    ? exercise.name
+    : exercise.name + " (" + exercise.equipment + ")";
+}
+
+/** An unmapped fixture exercise would mean the probe no longer tests the map. */
+function printExerciseMap(exercises: readonly ExerciseSummary[]): void {
+  const unmapped: string[] = [];
+  for (const exercise of exercises) {
+    const resolved = resolveExerciseType(exercise.name, exercise.equipment);
+    console.log(
+      "exercise map: " + exerciseLabel(exercise) + " -> " + resolved.exercise_type,
+    );
+    if (!resolved.mapped) {
+      unmapped.push(exerciseLabel(exercise));
+    }
+  }
+  if (unmapped.length > 0) {
+    throw new ProbeError(
+      "Fixture exercise(s) not in the exercise-type map: " + unmapped.join(", "),
+    );
+  }
+}
+
+/** Constraint 7: the token response is redacted; request bodies are never logged. */
+function loggingFetch(logPath: string): StravaFetch {
+  return async (url, init) => {
+    const response = await globalThis.fetch(url, init);
+    const text = await response.text();
+    const path = new URL(url).pathname;
+    appendLog(logPath, {
+      kind: "strava_response",
+      method: init?.method ?? "GET",
+      path,
+      status: response.status,
+      body: isTokenPath(path) ? "[redacted: token response]" : parseBodyText(text),
+    });
+    return responseLike(response.status, response.headers, text);
+  };
+}
+
+function liveClient(settings: Settings, logPath: string): StravaClient {
   const stravaSettings: StravaSettings = {
-    getStravaClientId: async () => settings.stravaClientId,
+    getStravaClientId: () => Promise.resolve(settings.stravaClientId),
     getStravaClientSecret: () => settings.getStravaClientSecret(),
     getStravaRefreshToken: () => settings.getStravaRefreshToken(),
     reloadStravaRefreshToken: () => settings.reloadStravaRefreshToken(),
     addStravaRefreshTokenVersion: (value) =>
       settings.addStravaRefreshTokenVersion(value),
   };
-  const client = new StravaClient({ settings: stravaSettings });
-  const deps: ProbeDeps = {
-    accessToken: await client.getAccessToken(),
-    payloadLogPath: join(
-      tmpdir(),
-      "strava-bot-upload-probe-" + Date.now() + ".jsonl",
-    ),
+  return new StravaClient({
+    settings: stravaSettings,
+    fetch: loggingFetch(logPath),
+    log: (line) => appendLog(logPath, { kind: "client_log", line }),
+  });
+}
+
+function formField(form: FormData, name: string): string {
+  const value = form.get(name);
+  return typeof value === "string" ? value : "(absent)";
+}
+
+async function printUploadForm(form: FormData): Promise<void> {
+  for (const name of ["data_type", "sport_type", "name", "description"]) {
+    console.log(name + ": " + formField(form, name));
+  }
+  console.log("activity_type present: " + String(form.has("activity_type")));
+  const file = form.get("file");
+  if (!(file instanceof Blob)) {
+    throw new ProbeError("Dry run: the upload form carried no file.");
+  }
+  console.log("file:");
+  console.log(JSON.stringify(JSON.parse(await file.text()) as unknown, null, 2));
+}
+
+/** Answers the token refresh locally and stops at the upload; reads no secret. */
+function dryRunFetch(): StravaFetch {
+  return async (url, init) => {
+    const path = new URL(url).pathname;
+    if (isTokenPath(path)) {
+      const token = JSON.stringify({
+        token_type: "Bearer",
+        access_token: DRY_RUN_CREDENTIAL,
+        refresh_token: DRY_RUN_CREDENTIAL,
+        expires_at: Math.floor(Date.now() / 1_000) + 3_600,
+      });
+      return responseLike(200, new Headers(), token);
+    }
+    if (init?.method === "POST" && path.endsWith("/uploads") && init.body instanceof FormData) {
+      await printUploadForm(init.body);
+      throw new DryRunComplete();
+    }
+    throw new ProbeError("Dry run: unexpected request to " + path + "; nothing was sent.");
   };
+}
 
-  const results: AttemptResult[] = [];
-  for (const fieldName of FIELD_NAMES) {
-    results.push(await probeFieldName(fieldName, deps));
-  }
+function dryRunClient(logPath: string): StravaClient {
+  const stravaSettings: StravaSettings = {
+    getStravaClientId: () => Promise.resolve(DRY_RUN_CREDENTIAL),
+    getStravaClientSecret: () => Promise.resolve(DRY_RUN_CREDENTIAL),
+    getStravaRefreshToken: () => Promise.resolve(DRY_RUN_CREDENTIAL),
+    addStravaRefreshTokenVersion: () =>
+      Promise.reject(new ProbeError("Dry run tried to persist a refresh token.")),
+  };
+  return new StravaClient({
+    settings: stravaSettings,
+    fetch: dryRunFetch(),
+    log: (line) => appendLog(logPath, { kind: "client_log", line }),
+  });
+}
 
-  for (const result of results) {
-    console.log(result.fieldName + "=json: " + result.verdict);
-  }
-
-  const accepted = results
-    .filter((result) => result.accepted)
-    .map((result) => result.fieldName);
-  console.log(
-    accepted.length > 0
-      ? "verdict: POST /uploads accepts JSON; accepted field name(s): " +
-        accepted.join(", ")
-      : "verdict: POST /uploads did not accept JSON under either field name",
+function printAccepted(
+  result: ActivityUploadResult,
+  summary: WorkoutSummary,
+  logPath: string,
+): void {
+  const setCount = summary.exercises.reduce(
+    (count, exercise) => count + exercise.sets.length,
+    0,
   );
+  console.log("accepted: upload " + result.upload_id + " became activity " + result.id);
+  console.log("open: " + result.url);
+  console.log("check on strava.com:");
+  console.log("  - sport type is Weight Training");
   console.log(
-    "full Strava responses (kept out of VCS and agent context): " +
-      deps.payloadLogPath,
+    "  - exercises: " + summary.exercises.map((exercise) => exercise.name).join(", "),
   );
-
-  if (results.some((result) => !result.definite)) {
-    throw new ProbeError(
-      "Probe ended without a definite verdict for every field name; re-run it.",
+  console.log("  - " + setCount + " sets in total");
+  const first = summary.exercises[0];
+  if (first?.top_set?.unit === "lb") {
+    const kilograms = (first.top_set.weight * POUNDS_TO_KILOGRAMS).toFixed(1);
+    console.log(
+      "  - " + first.name + " shows about " + kilograms + " kg (" +
+        first.top_set.weight + " lb)",
     );
+  }
+  console.log(
+    "the API cannot delete this activity (GET and DELETE return 404); " +
+      "remove it by hand on strava.com once checked",
+  );
+  console.log("full Strava responses (token redacted, kept out of VCS): " + logPath);
+}
+
+/** Constraints 2 and 7: Strava fault text goes to the log file, never stdout. */
+function reportFailure(error: unknown, logPath: string): ProbeError {
+  if (error instanceof ProbeError) {
+    return error;
+  }
+  if (error instanceof StravaApiError) {
+    appendLog(logPath, {
+      kind: "failure",
+      name: error.name,
+      status: error.status,
+      stage: error.stage ?? null,
+      message: error.message,
+      fault: error.fault ?? null,
+    });
+    return new ProbeError(
+      "rejected: stage=" + (error.stage ?? "unknown") + " status=" + error.status +
+        " (details in " + logPath + ")",
+    );
+  }
+  const name = error instanceof Error ? error.name : "non-Error value";
+  appendLog(logPath, {
+    kind: "failure",
+    name,
+    message: error instanceof Error ? error.message : String(error),
+  });
+  return new ProbeError("Probe failed: " + name + " (details in " + logPath + ")");
+}
+
+async function main(): Promise<void> {
+  const dryRun = process.argv.slice(2).includes("--dry-run");
+  loadEnvFile();
+  const settings = loadSettings();
+  const logPath = join(tmpdir(), "strava-bot-upload-probe-" + Date.now() + ".jsonl");
+
+  const probe = buildProbeUpload(settings);
+  printExerciseMap(probe.summary.exercises);
+  const client = dryRun ? dryRunClient(logPath) : liveClient(settings, logPath);
+
+  try {
+    const result = await client.uploadActivity(probe.activity, probe.workout);
+    printAccepted(result, probe.summary, logPath);
+  } catch (error: unknown) {
+    if (error instanceof DryRunComplete) {
+      console.log("dry run: nothing was sent");
+      return;
+    }
+    throw reportFailure(error, logPath);
   }
 }
 
 const invokedPath = process.argv[1];
 if (invokedPath !== undefined && import.meta.url === pathToFileURL(invokedPath).href) {
   main().catch((error: unknown) => {
-    if (error instanceof ProbeError) {
-      console.error(error.message);
-    } else {
-      console.error("Probe failed.");
-    }
+    console.error(
+      error instanceof ProbeError
+        ? error.message
+        : "Probe failed: " + (error instanceof Error ? error.name : "non-Error value"),
+    );
     process.exitCode = 1;
   });
 }
+

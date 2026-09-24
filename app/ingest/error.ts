@@ -23,6 +23,15 @@ export class UnparseableWorkoutError extends IngestError {
   }
 }
 
+/** A workout with no sets cannot become a structured upload, the only Strava path. */
+export class UnuploadableWorkoutError extends IngestError {
+  readonly statusCode = 400;
+
+  constructor() {
+    super("no sets to upload");
+  }
+}
+
 export class StravaRejectedError extends IngestError {
   readonly statusCode = 502;
 

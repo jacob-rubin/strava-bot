@@ -127,7 +127,6 @@ export type SettingsOptions = {
 export class Settings {
   readonly stravaClientId: string;
   readonly localTz: string;
-  readonly stravaUseStructuredUpload: boolean;
   readonly maxBodyBytes: number;
   readonly elapsedCapS: number;
   readonly #secrets: SecretManagerSecretAccessor;
@@ -135,11 +134,6 @@ export class Settings {
   constructor(env: NodeJS.ProcessEnv, secrets: SecretManagerSecretAccessor) {
     this.stravaClientId = requiredEnv(env, "STRAVA_CLIENT_ID");
     this.localTz = env.LOCAL_TZ?.trim() || DEFAULT_LOCAL_TZ;
-    this.stravaUseStructuredUpload = parseBoolean(
-      env.STRAVA_USE_STRUCTURED_UPLOAD,
-      "STRAVA_USE_STRUCTURED_UPLOAD",
-      false,
-    );
     this.maxBodyBytes = parsePositiveInteger(
       env.MAX_BODY_BYTES,
       "MAX_BODY_BYTES",
@@ -187,7 +181,6 @@ export class Settings {
     return {
       stravaClientId: this.stravaClientId,
       localTz: this.localTz,
-      stravaUseStructuredUpload: this.stravaUseStructuredUpload,
       maxBodyBytes: this.maxBodyBytes,
       elapsedCapS: this.elapsedCapS,
     };
@@ -210,26 +203,6 @@ function requiredEnv(env: NodeJS.ProcessEnv, name: string): string {
     throw new Error(`Missing required environment variable ${name}.`);
   }
   return value;
-}
-
-function parseBoolean(
-  rawValue: string | undefined,
-  name: string,
-  defaultValue: boolean,
-): boolean {
-  if (rawValue === undefined || rawValue.trim() === "") {
-    return defaultValue;
-  }
-
-  const normalized = rawValue.trim().toLowerCase();
-  if (normalized === "true") {
-    return true;
-  }
-  if (normalized === "false") {
-    return false;
-  }
-
-  throw new Error(`${name} must be true or false.`);
 }
 
 function parsePositiveInteger(

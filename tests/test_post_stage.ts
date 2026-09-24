@@ -12,8 +12,8 @@ import type { WorkoutTiming } from "../app/ingest/workout_timing.js";
 import type { ActivityText, WorkoutSummary } from "../app/models.js";
 import type { ActivityClient } from "../app/ports/activity_client.js";
 import type {
-  CreateActivityInput,
-  CreateActivityResult,
+  ActivityUploadInput,
+  ActivityUploadResult,
   StructuredWorkoutInput,
 } from "../app/strava.js";
 import type { WorkoutResult } from "../app/store.js";
@@ -39,19 +39,19 @@ const TIMING: WorkoutTiming = {
 
 class RecordingClient implements ActivityClient {
   readonly calls: Array<{
-    activity: CreateActivityInput;
-    structuredWorkout: StructuredWorkoutInput | undefined;
+    activity: ActivityUploadInput;
+    workout: StructuredWorkoutInput;
   }> = [];
 
   constructor(
-    private readonly outcome: CreateActivityResult | Error,
+    private readonly outcome: ActivityUploadResult | Error,
   ) {}
 
-  async createActivity(
-    activity: CreateActivityInput,
-    structuredWorkout?: StructuredWorkoutInput,
-  ): Promise<CreateActivityResult> {
-    this.calls.push({ activity, structuredWorkout });
+  async uploadActivity(
+    activity: ActivityUploadInput,
+    workout: StructuredWorkoutInput,
+  ): Promise<ActivityUploadResult> {
+    this.calls.push({ activity, workout });
     if (this.outcome instanceof Error) {
       throw this.outcome;
     }
@@ -87,13 +87,12 @@ class RecordingStore implements RequiredWorkoutStore {
 function post(
   strava: ActivityClient,
   store: RequiredWorkoutStore,
-): Promise<CreateActivityResult> {
+): Promise<ActivityUploadResult> {
   return postWorkoutActivity({
     strava,
     store,
     resultDedupeKey: "strong:k3m8q2xz",
     activityText: ACTIVITY_TEXT,
-    startDateLocal: SUMMARY.started_at,
     summary: SUMMARY,
     timing: TIMING,
   });
@@ -101,22 +100,26 @@ function post(
 
 describe("postWorkoutActivity", () => {
   it("posts structured context and records a successful activity", async () => {
-    const strava = new RecordingClient({ id: "123", url: "/activities/123" });
+    const strava = new RecordingClient({
+      id: "123",
+      url: "/activities/123",
+      upload_id: "987",
+    });
     const store = new RecordingStore();
 
     await expect(post(strava, store)).resolves.toEqual({
       id: "123",
       url: "/activities/123",
+      upload_id: "987",
     });
     expect(strava.calls).toEqual([
       {
         activity: {
           name: ACTIVITY_TEXT.title,
           description: ACTIVITY_TEXT.description,
-          start_date_local: SUMMARY.started_at,
           elapsed_time: TIMING.elapsedS,
         },
-        structuredWorkout: {
+        workout: {
           start_time_utc: TIMING.startedAtUtc,
           utc_offset: TIMING.utcOffsetSeconds,
           exercises: SUMMARY.exercises,
@@ -130,9 +133,9 @@ describe("postWorkoutActivity", () => {
           status: "posted",
           strava: {
             activity_id: "123",
-            upload_id: null,
+            upload_id: "987",
             url: "/activities/123",
-            method: "activities",
+            method: "uploads",
           },
           error: null,
         },
@@ -160,7 +163,11 @@ describe("postWorkoutActivity", () => {
   });
 
   it("surfaces a store failure while recording success as InternalError", async () => {
-    const strava = new RecordingClient({ id: "123", url: "/activities/123" });
+    const strava = new RecordingClient({
+      id: "123",
+      url: "/activities/123",
+      upload_id: "987",
+    });
     const store = new RecordingStore();
     store.failWrite = true;
 

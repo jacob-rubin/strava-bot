@@ -12,7 +12,7 @@ Short records of choices that trade something off, so the reasoning survives ind
 - [0001](0001-static-bearer-secret.md) — Static bearer secret instead of OIDC/HMAC for the ingest endpoint
 - [0002](0002-no-strava-read-scope.md) — Request `activity:write` only, no read scope (superseded by 0009, 0010)
 - [0003](0003-content-hash-dedupe-guard.md) — Content-hash guard alongside the share-link slug for dedup
-- [0004](0004-primary-then-structured-upload.md) — Ship `POST /activities` first; gate structured uploads behind a flag
+- [0004](0004-primary-then-structured-upload.md) — Ship `POST /activities` first; gate structured uploads behind a flag (superseded by 0015)
 - [0005](0005-pr-detection-in-code.md) — PR detection computed explicitly in code
 - [0006](0006-no-retry-queue.md) — No background retry queue; retries are the user tapping Share again
 - [0007](0007-terraform-for-gcp-infra.md) — Terraform for GCP infrastructure; Cloud Build (buildpacks) deploys Cloud Run
@@ -22,5 +22,7 @@ Short records of choices that trade something off, so the reasoning survives ind
 - [0011](0011-allow-raw-text-debug-logging.md) — Allow `raw_text` debug logging; keep the secret prohibition absolute
 - [0012](0012-minimal-request-log.md) — Log only the payload and the response status; drop the per-request state object
 - [0013](0013-retire-task-runbook-workflow.md) — Retire the task-runbook workflow, the status ledger, and the planning spec
+- [0014](0014-curated-exercise-type-map.md) — Curate the Strong-to-Strava exercise map by hand rather than deriving it from a name
+- [0015](0015-uploads-only-strava-path.md) — `POST /uploads` is the only Strava path; no `POST /activities`, no fallback, no flag (supersedes 0004)
 
 ← [Docs index](../README.md)
