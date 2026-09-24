@@ -64,9 +64,11 @@ strava-bot/
     main.tf                 # project, APIs, Firestore, secrets, IAM, build pipeline, budget
     variables.tf
     outputs.tf
+    terraform.tfvars.example # template for the gitignored terraform.tfvars
   tools/
     post-fixture.ps1        # POST a fixture at the deployed endpoint
     probe-auth.ps1          # check the ingest auth behaviour of a deployment
+    terraform-apply.ps1     # terraform plan/apply with secrets loaded from Secret Manager
   package.json
   package-lock.json
   tsconfig.json
