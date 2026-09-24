@@ -330,7 +330,7 @@ describe("ingest processing order", () => {
     const call = strava.calls[0];
     expect(call?.name).toBe("Deadlift day");
     expect(call?.description).toContain("Deadlift");
-    expect(call?.description).toContain("315 lb x 4");
+    expect(call?.description).toContain("\u2022 Deadlift, 315lb, 3 sets of 4 reps");
     expect(call?.description).toContain("3780 total volume");
     // The upload carries the wall clock as UTC plus an offset, not a naive local string.
     expect(strava.workouts[0]?.start_time_utc).toBe("2026-09-09T11:43:00Z");
