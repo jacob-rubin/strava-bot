@@ -1,0 +1,6 @@
+# Gitignored files Codex copies from the local checkout into each new managed
+# worktree. List only ignored paths; tracked files are already checked out.
+# These copies stay local and are never committed (docs/CONSTRAINTS.md, Constraint 7).
+/.env
+/terraform/terraform.tfvars
+/node_modules/
