@@ -4,23 +4,42 @@ import type {
   HistoryContext,
   TopSet,
   WorkoutSummary,
+  WorkoutSet,
 } from "./models.js";
 
 const TITLE_MAX_LENGTH = 60;
 const DESCRIPTION_MAX_LENGTH = 1_000;
+const EXERCISE_BULLET = "\u2022";
+const DESCRIPTION_FOOTER = "\n\nMade with love by strava bot";
 
 /** Plain numeric rendering: no locale grouping, no unit normalization. */
 function formatNumber(value: number): string {
   return String(value);
 }
 
-function formatTopSet(topSet: TopSet): string {
-  return `${formatNumber(topSet.weight)} ${topSet.unit} x ${formatNumber(topSet.reps)}`;
+/** Working sets only, matching docs/reference/persistence.md (warmups excluded). */
+function workingSets(exercise: ExerciseSummary): readonly WorkoutSet[] {
+  return exercise.sets.filter((set) => !set.is_warmup);
 }
 
-/** Working sets only, matching docs/reference/persistence.md (warmups excluded). */
-function workingSetCount(exercise: ExerciseSummary): number {
-  return exercise.sets.filter((set) => !set.is_warmup).length;
+/** Constraint 10: a load shared by every weighted set is stated flat; otherwise only as a ceiling. */
+function formatLoad(topSet: TopSet, sets: readonly WorkoutSet[]): string {
+  const load = `${formatNumber(topSet.weight)}${topSet.unit}`;
+  const uniform = sets.every(
+    (set) =>
+      set.weight === null ||
+      (set.weight === topSet.weight && set.unit === topSet.unit),
+  );
+  return uniform ? load : `up to ${load}`;
+}
+
+function formatSets(sets: readonly WorkoutSet[]): string {
+  const count = `${formatNumber(sets.length)} ${sets.length === 1 ? "set" : "sets"}`;
+  const firstReps = sets.find((set) => set.reps !== null)?.reps;
+  if (firstReps === undefined || firstReps === null) {
+    return count;
+  }
+  return `${count} of ${formatNumber(firstReps)} ${firstReps === 1 ? "rep" : "reps"}`;
 }
 
 /**
@@ -48,13 +67,14 @@ function describeExercise(
   context: HistoryContext,
 ): string {
   const parts: string[] = [exercise.name];
+  const sets = workingSets(exercise);
 
   if (exercise.top_set !== null) {
-    parts.push(`top set ${formatTopSet(exercise.top_set)}`);
+    parts.push(formatLoad(exercise.top_set, sets));
   }
-  parts.push(`${formatNumber(exercise.total_reps)} reps`);
-  parts.push(`${formatNumber(exercise.total_volume)} volume`);
-  parts.push(`${formatNumber(workingSetCount(exercise))} working sets`);
+  if (sets.length > 0) {
+    parts.push(formatSets(sets));
+  }
 
   const history = context.per_exercise[exercise.name];
   if (history !== undefined) {
@@ -81,19 +101,19 @@ export function formatActivityText(
   const title = truncate(name, TITLE_MAX_LENGTH);
 
   const lines: string[] = [
-    `${name}: ${formatNumber(summary.exercises.length)} exercises, ` +
-      `${formatNumber(summary.total_sets)} working sets, ` +
-      `${formatNumber(summary.total_reps)} reps, ` +
+    `${formatNumber(summary.exercises.length)} exercises, ` +
       `${formatNumber(summary.total_volume)} total volume`,
   ];
 
   for (const exercise of summary.exercises) {
-    lines.push(describeExercise(exercise, context));
+    lines.push(`${EXERCISE_BULLET} ${describeExercise(exercise, context)}`);
   }
 
-  const joined = lines.join(". ");
-  const sentence = joined.endsWith(".") ? joined : `${joined}.`;
-  const description = truncate(sentence, DESCRIPTION_MAX_LENGTH);
+  const body = truncate(
+    lines.join("\n"),
+    DESCRIPTION_MAX_LENGTH - DESCRIPTION_FOOTER.length,
+  );
+  const description = `${body}${DESCRIPTION_FOOTER}`;
 
   return { title, description };
 }

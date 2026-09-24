@@ -8,6 +8,7 @@ import type {
   ExerciseSummary,
   HistoryContext,
   TopSet,
+  WorkoutSet,
   WeightRepsSet,
   WorkoutSummary,
 } from "../app/models.js";
@@ -100,6 +101,83 @@ describe("formatActivityText", () => {
     expect(result.description).toContain("Squat");
   });
 
+  it("puts each exercise on its own bulleted line under a summary line without the workout name", () => {
+    const result = formatActivityText(makeSummary(), emptyContext());
+
+    expect(result.description).toBe(
+      [
+        "2 exercises, 7155 total volume",
+        "\u2022 Deadlift, 315lb, 1 set of 4 reps",
+        "\u2022 Squat, 225lb, 1 set of 5 reps",
+        "",
+        "Made with love by strava bot",
+      ].join("\n"),
+    );
+    expect(result.description).not.toContain("Early Morning Workout");
+  });
+
+  it("summarizes uniform working sets as load, set count, and reps per set, ignoring warmups", () => {
+    const exercise: ExerciseSummary = {
+      ...makeExercise("Deadlift", { weight: 315, unit: "lb", reps: 5 }, 6300, 20, 4),
+      sets: [
+        weightSet(135, 10, true),
+        ...Array.from({ length: 4 }, () => weightSet(315, 5)),
+      ],
+    };
+    const result = formatActivityText(
+      makeSummary({ exercises: [exercise] }),
+      emptyContext(),
+    );
+
+    expect(result.description.split("\n")[1]).toBe(
+      "\u2022 Deadlift, 315lb, 4 sets of 5 reps",
+    );
+  });
+
+  it("states varying loads as a ceiling and varying reps by the first working set", () => {
+    const exercise: ExerciseSummary = {
+      ...makeExercise("Squat", { weight: 225, unit: "lb", reps: 5 }, 0, 0),
+      sets: [weightSet(205, 8), weightSet(225, 5), weightSet(225, 6)],
+    };
+    const result = formatActivityText(
+      makeSummary({ exercises: [exercise] }),
+      emptyContext(),
+    );
+
+    expect(result.description.split("\n")[1]).toBe(
+      "\u2022 Squat, up to 225lb, 3 sets of 8 reps",
+    );
+  });
+
+  it("gives only a set count for an exercise without weight or reps", () => {
+    const plank: WorkoutSet = {
+      kind: "time",
+      index: "1",
+      is_warmup: false,
+      volume: 0,
+      weight: null,
+      unit: null,
+      reps: null,
+      duration_s: 90,
+      distance: null,
+      distance_unit: null,
+    };
+    const exercise: ExerciseSummary = {
+      name: "Plank",
+      equipment: null,
+      top_set: null,
+      total_volume: 0,
+      total_reps: 0,
+      sets: [plank],
+    };
+    const result = formatActivityText(
+      makeSummary({ exercises: [exercise] }),
+      emptyContext(),
+    );
+
+    expect(result.description.split("\n")[1]).toBe("\u2022 Plank, 1 set");
+  });
+
   it("keeps the title within 60 characters", () => {
     const longName = "W".repeat(80);
     const result = formatActivityText(
@@ -127,6 +205,7 @@ describe("formatActivityText", () => {
 
     expect(result.description.length).toBeLessThanOrEqual(1_000);
     expect(result.description.length).toBe(1_000);
+    expect(result.description.endsWith("\n\nMade with love by strava bot")).toBe(true);
   });
 
   it("is deterministic for identical inputs", () => {
@@ -184,7 +263,7 @@ describe("formatActivityText", () => {
     expect(result.description).toContain("7 days since last");
 
     const squatLine = result.description
-      .split(". ")
+      .split("\n")
       .map((line) => line.trim())
       .find((line) => line.includes("Squat"));
     expect(squatLine).toBeDefined();
