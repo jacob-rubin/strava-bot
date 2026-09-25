@@ -49,6 +49,7 @@ class FakeSettings implements StravaSettings {
 const BASE_TIME = 1_890_000_000_000;
 const UPLOAD_ID = 987;
 const ACTIVITY_ID = 456;
+const EXTERNAL_ID = "strava-bot-test-upload";
 
 function jsonResponse(status: number, body: unknown): StravaResponseLike {
   return {
@@ -85,7 +86,7 @@ function oauthResponse(
 }
 
 function uploadAccepted(): StravaResponseLike {
-  return jsonResponse(201, { id: UPLOAD_ID });
+  return jsonResponse(201, { id: UPLOAD_ID, external_id: EXTERNAL_ID });
 }
 
 function uploadReady(): StravaResponseLike {
@@ -184,6 +185,7 @@ describe("StravaClient token caching", () => {
     const log = vi.fn();
     const client = new StravaClient({
       settings: new FakeSettings(),
+      externalId: () => EXTERNAL_ID,
       fetch: fetchMock,
       now: () => BASE_TIME,
       log,
@@ -202,6 +204,7 @@ describe("StravaClient token caching", () => {
     const fetchMock = vi.fn<StravaFetch>(readyUploadFetch("token-a"));
     const client = new StravaClient({
       settings,
+      externalId: () => EXTERNAL_ID,
       fetch: fetchMock,
       now: () => BASE_TIME,
       log: () => undefined,
@@ -230,6 +233,7 @@ describe("StravaClient token caching", () => {
     );
     const client = new StravaClient({
       settings,
+      externalId: () => EXTERNAL_ID,
       fetch: fetchMock,
       now: () => now,
       log: () => undefined,
@@ -254,6 +258,7 @@ describe("StravaClient token caching", () => {
     );
     const client = new StravaClient({
       settings,
+      externalId: () => EXTERNAL_ID,
       fetch: fetchMock,
       now: () => BASE_TIME,
       log: () => undefined,
@@ -286,6 +291,7 @@ describe("StravaClient failure mapping", () => {
     );
     const client = new StravaClient({
       settings,
+      externalId: () => EXTERNAL_ID,
       fetch: fetchMock,
       now: () => BASE_TIME,
       log: () => undefined,
@@ -319,6 +325,7 @@ describe("StravaClient failure mapping", () => {
     );
     const client = new StravaClient({
       settings,
+      externalId: () => EXTERNAL_ID,
       fetch: fetchMock,
       now: () => BASE_TIME,
       log: () => undefined,
@@ -358,6 +365,7 @@ describe("StravaClient failure mapping", () => {
     );
     const client = new StravaClient({
       settings,
+      externalId: () => EXTERNAL_ID,
       fetch: fetchMock,
       now: () => BASE_TIME,
       log: () => undefined,
@@ -384,6 +392,7 @@ describe("StravaClient failure mapping", () => {
     );
     const client = new StravaClient({
       settings,
+      externalId: () => EXTERNAL_ID,
       fetch: fetchMock,
       now: () => BASE_TIME,
       log: () => undefined,
@@ -417,6 +426,7 @@ describe("StravaClient failure mapping", () => {
     );
     const client = new StravaClient({
       settings,
+      externalId: () => EXTERNAL_ID,
       fetch: fetchMock,
       now: () => BASE_TIME,
       log: () => undefined,
@@ -443,6 +453,7 @@ describe("StravaClient failure mapping", () => {
     );
     const client = new StravaClient({
       settings,
+      externalId: () => EXTERNAL_ID,
       fetch: fetchMock,
       now: () => BASE_TIME,
       log: () => undefined,
@@ -477,6 +488,7 @@ describe("StravaClient failure mapping", () => {
     const log = vi.fn();
     const client = new StravaClient({
       settings,
+      externalId: () => EXTERNAL_ID,
       fetch: fetchMock,
       now: () => BASE_TIME,
       log,
@@ -494,6 +506,44 @@ describe("StravaClient failure mapping", () => {
       false,
     );
     expect(JSON.stringify(log.mock.calls)).not.toContain("duplicate of activity");
+  });
+
+  it("refuses an intake answer that is an earlier upload's finished record", async () => {
+    const settings = new FakeSettings();
+    const fetchMock = vi.fn<StravaFetch>(
+      async (url: string): Promise<StravaResponseLike> => {
+        if (isOauth(url)) {
+          return oauthResponse("token-p", "rt-old", BASE_TIME / 1000 + 3600);
+        }
+        if (isUploadIntake(url)) {
+          return jsonResponse(201, {
+            id: UPLOAD_ID,
+            external_id: "workout.json",
+            status: "Your activity is ready.",
+            error: null,
+            activity_id: ACTIVITY_ID,
+          });
+        }
+        return uploadReady();
+      },
+    );
+    const client = new StravaClient({
+      settings,
+      externalId: () => EXTERNAL_ID,
+      fetch: fetchMock,
+      now: () => BASE_TIME,
+      log: () => undefined,
+    });
+
+    const error = await client
+      .uploadActivity(ACTIVITY_INPUT, STRUCTURED_WORKOUT)
+      .catch((reason: unknown) => reason);
+
+    expect(error).toBeInstanceOf(StravaApiError);
+    expect((error as StravaApiError).stage).toBe("structured_upload");
+    expect(
+      fetchMock.mock.calls.some(([url]) => url.includes(`/uploads/${UPLOAD_ID}`)),
+    ).toBe(false);
   });
 
   it("times out after 30s of polling rather than falling back", async () => {
@@ -520,6 +570,7 @@ describe("StravaClient failure mapping", () => {
     );
     const client = new StravaClient({
       settings,
+      externalId: () => EXTERNAL_ID,
       fetch: fetchMock,
       now: () => now,
       sleep,
@@ -567,6 +618,7 @@ describe("StravaClient structured upload payload", () => {
     const log = vi.fn();
     const client = new StravaClient({
       settings,
+      externalId: () => EXTERNAL_ID,
       fetch: fetchMock,
       now: () => BASE_TIME,
       sleep: async () => undefined,
@@ -581,6 +633,7 @@ describe("StravaClient structured upload payload", () => {
       upload_id: "987",
     });
     expect(uploadForm?.get("data_type")).toBe("json");
+    expect(uploadForm?.get("external_id")).toBe(EXTERNAL_ID);
     expect(uploadForm?.get("name")).toBe("Early Morning Workout");
     expect(uploadForm?.get("description")).toBe("4 exercises");
     expect(uploadForm?.get("sport_type")).toBe("WeightTraining");
@@ -590,6 +643,7 @@ describe("StravaClient structured upload payload", () => {
     if (file === undefined || file === null || typeof file === "string") {
       throw new Error("Expected the structured upload to include a file.");
     }
+    expect(file.name).toBe(EXTERNAL_ID + ".json");
     const document = JSON.parse(await file.text()) as {
       version: string;
       start_time: string;
@@ -638,6 +692,7 @@ describe("StravaClient structured upload payload", () => {
     const log = vi.fn();
     const client = new StravaClient({
       settings,
+      externalId: () => EXTERNAL_ID,
       fetch: fetchMock,
       now: () => BASE_TIME,
       log,
@@ -676,6 +731,7 @@ describe("StravaClient structured upload payload", () => {
     const fetchMock = vi.fn<StravaFetch>(readyUploadFetch("token-m"));
     const client = new StravaClient({
       settings,
+      externalId: () => EXTERNAL_ID,
       fetch: fetchMock,
       now: () => BASE_TIME,
       log: () => undefined,
