@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { resolveExerciseType } from "./exercises/exercise_type.js";
 import type { ExerciseSummary, WorkoutSet } from "./models.js";
 
@@ -53,6 +55,12 @@ export interface StructuredWorkoutInput {
   exercises: ExerciseSummary[];
 }
 
+interface StructuredFormInput {
+  readonly activity: ActivityUploadInput;
+  readonly workout: StructuredWorkoutInput;
+  readonly externalId: string;
+}
+
 export interface StravaUsage {
   rateLimitLimit: string;
   rateLimitUsage: string;
@@ -97,6 +105,7 @@ export interface StravaClientOptions {
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
   log?: (line: string) => void;
+  externalId?: () => string;
 }
 
 interface TokenSnapshot {
@@ -283,8 +292,7 @@ function buildStructuredFile(
 }
 
 function buildStructuredForm(
-  activity: ActivityUploadInput,
-  workout: StructuredWorkoutInput,
+  { activity, workout, externalId }: StructuredFormInput,
   log: (line: string) => void,
 ): FormData {
   const form = new FormData();
@@ -293,9 +301,10 @@ function buildStructuredForm(
     new Blob([buildStructuredFile(activity, workout, log)], {
       type: "application/json",
     }),
-    "workout.json",
+    externalId + ".json",
   );
   form.append("data_type", "json");
+  form.append("external_id", externalId);
   form.append("name", activity.name);
   form.append("description", activity.description);
   form.append("sport_type", "WeightTraining");
@@ -341,12 +350,18 @@ function extractUploadError(body: unknown): string | null {
   return typeof error === "string" && error !== "" ? error : null;
 }
 
+function extractExternalId(body: unknown): string | null {
+  const externalId = objectRecord(body)?.external_id;
+  return typeof externalId === "string" ? externalId : null;
+}
+
 export class StravaClient {
   readonly #settings: StravaSettings;
   readonly #fetch: StravaFetch;
   readonly #now: () => number;
   readonly #sleep: (ms: number) => Promise<void>;
   readonly #log: (line: string) => void;
+  readonly #externalId: () => string;
   #token: TokenSnapshot | undefined;
   #refreshToken: string | undefined;
 
@@ -358,6 +373,8 @@ export class StravaClient {
       options.sleep ??
       ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
     this.#log = options.log ?? ((line: string) => console.log(line));
+    this.#externalId =
+      options.externalId ?? (() => "strava-bot-" + randomUUID());
   }
 
   async getAccessToken(
@@ -473,7 +490,11 @@ export class StravaClient {
     activity: ActivityUploadInput,
     workout: StructuredWorkoutInput,
   ): Promise<ActivityUploadResult> {
-    const form = buildStructuredForm(activity, workout, this.#log);
+    const externalId = this.#externalId();
+    const form = buildStructuredForm(
+      { activity, workout, externalId },
+      this.#log,
+    );
     const send = async (): Promise<StravaResponseLike> => {
       const accessToken = await this.getAccessToken();
       return this.#postForm(
@@ -522,6 +543,15 @@ export class StravaClient {
       throw new StravaApiError({
         status: response.status,
         reason: "Strava structured upload response was missing an upload id.",
+        usage,
+        stage: "structured_upload",
+      });
+    }
+    if (extractExternalId(body) !== externalId) {
+      throw new StravaApiError({
+        status: response.status,
+        reason:
+          "Strava answered the structured upload with a different upload's record.",
         usage,
         stage: "structured_upload",
       });

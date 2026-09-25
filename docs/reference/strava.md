@@ -54,13 +54,14 @@ The accepted shape was first established against the live API by [`scripts/probe
 - The field is `data_type` with the value `json`. `dataType=json` is rejected at intake with a 400 naming the data-type field.
 - The uploaded file is a JSON envelope: `version` `"1.0"`, `start_time`, `utc_offset`, `elapsed_time`, and a non-empty `sets` array whose members use `exercise_type` — not the `set_type` / `category` field names documented for the FIT set message.
 - The multipart form also carries `name`, `description`, and `sport_type=WeightTraining`. `activity_type` is the deprecated spelling and is not sent.
+- Every upload carries a fresh `external_id` (`strava-bot-{uuid}`), and the file is named after it. Strava dedupes uploads per athlete on `external_id`, falling back to the file name when none is sent. A repeat is not rejected: intake answers 201 with the *earlier* upload's record, already `Your activity is ready.` and pointing at the earlier activity. A constant `workout.json` name made every upload after the first resolve to one stale activity while each workout was recorded as posted.
 - A set object carries only `exercise_type`, `start_time`, and whichever of `weight`, `repetitions`, and `duration` the set has. `category` and `category_subtype` belong to the FIT set message, not this schema, and are not sent.
 - Weights are converted to kilograms for the upload; nothing else normalizes units.
 - Strong supplies no set timestamps, so sets are distributed uniformly across `elapsed_time` in source order — only monotonicity and in-range values matter.
 
-Intake returns an upload id, which is then polled at `GET /uploads/{uploadId}` every second until a terminal state — a non-null `error` or a non-null `activity_id` — or a 30-second timeout. A 401 mid-poll refreshes and retries the poll once.
+Intake returns an upload id and echoes the `external_id`; an echo that differs from the one sent means Strava matched an earlier upload, and the request fails rather than polling it. The upload id is then polled at `GET /uploads/{uploadId}` every second until a terminal state — a non-null `error` or a non-null `activity_id` — or a 30-second timeout. A 401 mid-poll refreshes and retries the poll once.
 
-Every failure — intake 4xx, 429, a non-null upload `error`, or the poll timeout — is fatal for the request: the ingest route answers 502 and records `status="failed"`, so tapping Share again retries ([ingest API](ingest-api.md#error-handling)). A workout with no sets cannot produce a valid file and is rejected with 400 before any Strava call.
+Every failure — intake 4xx, 429, a mismatched `external_id` echo, a non-null upload `error`, or the poll timeout — is fatal for the request: the ingest route answers 502 and records `status="failed"`, so tapping Share again retries ([ingest API](ingest-api.md#error-handling)). A workout with no sets cannot produce a valid file and is rejected with 400 before any Strava call.
 
 One caveat from the probe: an activity created this way returned 404 on API `GET` and `DELETE` with a `read,activity:write` token, so an activity invisible to the app's scope cannot be removed via the API and needs deleting by hand on strava.com.
 
@@ -115,4 +116,3 @@ Every Strava call logs the usage headers — `X-RateLimit-Limit`, `X-RateLimit-U
 ---
 
 ← [Docs index](../README.md) · [Ingest API](ingest-api.md) · [Operations](../operations.md)
-
