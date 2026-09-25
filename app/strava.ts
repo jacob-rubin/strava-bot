@@ -55,7 +55,6 @@ export interface StructuredWorkoutInput {
   exercises: ExerciseSummary[];
 }
 
-/** One upload's form contents; `externalId` is Strava's per-athlete upload dedupe key. */
 interface StructuredFormInput {
   readonly activity: ActivityUploadInput;
   readonly workout: StructuredWorkoutInput;
@@ -106,8 +105,7 @@ export interface StravaClientOptions {
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
   log?: (line: string) => void;
-  /** Must return a value never sent before; Strava dedupes uploads on it. */
-  newExternalId?: () => string;
+  externalId?: () => string;
 }
 
 interface TokenSnapshot {
@@ -306,8 +304,6 @@ function buildStructuredForm(
     externalId + ".json",
   );
   form.append("data_type", "json");
-  // Without an external_id Strava falls back to the file name, and answers a
-  // repeat with the first upload's record as a 201 instead of an error.
   form.append("external_id", externalId);
   form.append("name", activity.name);
   form.append("description", activity.description);
@@ -365,7 +361,7 @@ export class StravaClient {
   readonly #now: () => number;
   readonly #sleep: (ms: number) => Promise<void>;
   readonly #log: (line: string) => void;
-  readonly #newExternalId: () => string;
+  readonly #externalId: () => string;
   #token: TokenSnapshot | undefined;
   #refreshToken: string | undefined;
 
@@ -377,8 +373,8 @@ export class StravaClient {
       options.sleep ??
       ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
     this.#log = options.log ?? ((line: string) => console.log(line));
-    this.#newExternalId =
-      options.newExternalId ?? (() => "strava-bot-" + randomUUID());
+    this.#externalId =
+      options.externalId ?? (() => "strava-bot-" + randomUUID());
   }
 
   async getAccessToken(
@@ -494,7 +490,7 @@ export class StravaClient {
     activity: ActivityUploadInput,
     workout: StructuredWorkoutInput,
   ): Promise<ActivityUploadResult> {
-    const externalId = this.#newExternalId();
+    const externalId = this.#externalId();
     const form = buildStructuredForm(
       { activity, workout, externalId },
       this.#log,
@@ -551,8 +547,6 @@ export class StravaClient {
         stage: "structured_upload",
       });
     }
-    // A record for another external_id is an earlier upload Strava matched,
-    // not this one; polling it would report a stale activity as posted.
     if (extractExternalId(body) !== externalId) {
       throw new StravaApiError({
         status: response.status,

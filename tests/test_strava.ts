@@ -185,7 +185,7 @@ describe("StravaClient token caching", () => {
     const log = vi.fn();
     const client = new StravaClient({
       settings: new FakeSettings(),
-      newExternalId: () => EXTERNAL_ID,
+      externalId: () => EXTERNAL_ID,
       fetch: fetchMock,
       now: () => BASE_TIME,
       log,
@@ -204,7 +204,7 @@ describe("StravaClient token caching", () => {
     const fetchMock = vi.fn<StravaFetch>(readyUploadFetch("token-a"));
     const client = new StravaClient({
       settings,
-      newExternalId: () => EXTERNAL_ID,
+      externalId: () => EXTERNAL_ID,
       fetch: fetchMock,
       now: () => BASE_TIME,
       log: () => undefined,
@@ -233,7 +233,7 @@ describe("StravaClient token caching", () => {
     );
     const client = new StravaClient({
       settings,
-      newExternalId: () => EXTERNAL_ID,
+      externalId: () => EXTERNAL_ID,
       fetch: fetchMock,
       now: () => now,
       log: () => undefined,
@@ -258,7 +258,7 @@ describe("StravaClient token caching", () => {
     );
     const client = new StravaClient({
       settings,
-      newExternalId: () => EXTERNAL_ID,
+      externalId: () => EXTERNAL_ID,
       fetch: fetchMock,
       now: () => BASE_TIME,
       log: () => undefined,
@@ -291,7 +291,7 @@ describe("StravaClient failure mapping", () => {
     );
     const client = new StravaClient({
       settings,
-      newExternalId: () => EXTERNAL_ID,
+      externalId: () => EXTERNAL_ID,
       fetch: fetchMock,
       now: () => BASE_TIME,
       log: () => undefined,
@@ -325,7 +325,7 @@ describe("StravaClient failure mapping", () => {
     );
     const client = new StravaClient({
       settings,
-      newExternalId: () => EXTERNAL_ID,
+      externalId: () => EXTERNAL_ID,
       fetch: fetchMock,
       now: () => BASE_TIME,
       log: () => undefined,
@@ -365,7 +365,7 @@ describe("StravaClient failure mapping", () => {
     );
     const client = new StravaClient({
       settings,
-      newExternalId: () => EXTERNAL_ID,
+      externalId: () => EXTERNAL_ID,
       fetch: fetchMock,
       now: () => BASE_TIME,
       log: () => undefined,
@@ -392,7 +392,7 @@ describe("StravaClient failure mapping", () => {
     );
     const client = new StravaClient({
       settings,
-      newExternalId: () => EXTERNAL_ID,
+      externalId: () => EXTERNAL_ID,
       fetch: fetchMock,
       now: () => BASE_TIME,
       log: () => undefined,
@@ -426,7 +426,7 @@ describe("StravaClient failure mapping", () => {
     );
     const client = new StravaClient({
       settings,
-      newExternalId: () => EXTERNAL_ID,
+      externalId: () => EXTERNAL_ID,
       fetch: fetchMock,
       now: () => BASE_TIME,
       log: () => undefined,
@@ -453,7 +453,7 @@ describe("StravaClient failure mapping", () => {
     );
     const client = new StravaClient({
       settings,
-      newExternalId: () => EXTERNAL_ID,
+      externalId: () => EXTERNAL_ID,
       fetch: fetchMock,
       now: () => BASE_TIME,
       log: () => undefined,
@@ -488,7 +488,7 @@ describe("StravaClient failure mapping", () => {
     const log = vi.fn();
     const client = new StravaClient({
       settings,
-      newExternalId: () => EXTERNAL_ID,
+      externalId: () => EXTERNAL_ID,
       fetch: fetchMock,
       now: () => BASE_TIME,
       log,
@@ -529,7 +529,7 @@ describe("StravaClient failure mapping", () => {
     );
     const client = new StravaClient({
       settings,
-      newExternalId: () => EXTERNAL_ID,
+      externalId: () => EXTERNAL_ID,
       fetch: fetchMock,
       now: () => BASE_TIME,
       log: () => undefined,
@@ -570,7 +570,7 @@ describe("StravaClient failure mapping", () => {
     );
     const client = new StravaClient({
       settings,
-      newExternalId: () => EXTERNAL_ID,
+      externalId: () => EXTERNAL_ID,
       fetch: fetchMock,
       now: () => now,
       sleep,
@@ -618,7 +618,7 @@ describe("StravaClient structured upload payload", () => {
     const log = vi.fn();
     const client = new StravaClient({
       settings,
-      newExternalId: () => EXTERNAL_ID,
+      externalId: () => EXTERNAL_ID,
       fetch: fetchMock,
       now: () => BASE_TIME,
       sleep: async () => undefined,
@@ -692,7 +692,7 @@ describe("StravaClient structured upload payload", () => {
     const log = vi.fn();
     const client = new StravaClient({
       settings,
-      newExternalId: () => EXTERNAL_ID,
+      externalId: () => EXTERNAL_ID,
       fetch: fetchMock,
       now: () => BASE_TIME,
       log,
@@ -731,7 +731,7 @@ describe("StravaClient structured upload payload", () => {
     const fetchMock = vi.fn<StravaFetch>(readyUploadFetch("token-m"));
     const client = new StravaClient({
       settings,
-      newExternalId: () => EXTERNAL_ID,
+      externalId: () => EXTERNAL_ID,
       fetch: fetchMock,
       now: () => BASE_TIME,
       log: () => undefined,
