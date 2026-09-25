@@ -84,9 +84,6 @@ function describeExercise(
     if (history.volume_trend !== null) {
       parts.push(`volume trend ${history.volume_trend}`);
     }
-    if (history.days_since_last !== null) {
-      parts.push(`${formatNumber(history.days_since_last)} days since last`);
-    }
   }
 
   return parts.join(", ");
@@ -117,4 +114,3 @@ export function formatActivityText(
 
   return { title, description };
 }
-
