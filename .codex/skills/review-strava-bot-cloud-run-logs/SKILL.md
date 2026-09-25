@@ -21,7 +21,7 @@ If the request does not specify a time range, review the last 24 hours. State th
 
 Start by inspecting service health and revisions without printing environment values:
 
-```powershell
+```bash
 gcloud run services describe strava-bot --project strava-bot-508419 --region us-central1 --format='yaml(metadata.generation,status.url,status.conditions,status.latestReadyRevisionName,status.traffic)'
 gcloud run revisions list --service strava-bot --project strava-bot-508419 --region us-central1 --limit=20
 ```
@@ -30,7 +30,7 @@ Query Cloud Logging with a filter anchored to the Cloud Run revision resource an
 
 Use an explicit project and a bounded `--freshness` or timestamp filter. For example, a default-window error query is:
 
-```powershell
+```bash
 gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="strava-bot" AND resource.labels.location="us-central1" AND severity>=ERROR' --project strava-bot-508419 --freshness=24h --limit=250 --order=asc --format=json
 ```
 
