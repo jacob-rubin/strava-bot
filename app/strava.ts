@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { resolveExerciseType } from "./exercises/exercise_type.js";
 import type { ExerciseSummary, WorkoutSet } from "./models.js";
 
@@ -53,6 +55,13 @@ export interface StructuredWorkoutInput {
   exercises: ExerciseSummary[];
 }
 
+/** One upload's form contents; `externalId` is Strava's per-athlete upload dedupe key. */
+interface StructuredFormInput {
+  readonly activity: ActivityUploadInput;
+  readonly workout: StructuredWorkoutInput;
+  readonly externalId: string;
+}
+
 export interface StravaUsage {
   rateLimitLimit: string;
   rateLimitUsage: string;
@@ -97,6 +106,8 @@ export interface StravaClientOptions {
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
   log?: (line: string) => void;
+  /** Must return a value never sent before; Strava dedupes uploads on it. */
+  newExternalId?: () => string;
 }
 
 interface TokenSnapshot {
@@ -283,8 +294,7 @@ function buildStructuredFile(
 }
 
 function buildStructuredForm(
-  activity: ActivityUploadInput,
-  workout: StructuredWorkoutInput,
+  { activity, workout, externalId }: StructuredFormInput,
   log: (line: string) => void,
 ): FormData {
   const form = new FormData();
@@ -293,9 +303,12 @@ function buildStructuredForm(
     new Blob([buildStructuredFile(activity, workout, log)], {
       type: "application/json",
     }),
-    "workout.json",
+    externalId + ".json",
   );
   form.append("data_type", "json");
+  // Without an external_id Strava falls back to the file name, and answers a
+  // repeat with the first upload's record as a 201 instead of an error.
+  form.append("external_id", externalId);
   form.append("name", activity.name);
   form.append("description", activity.description);
   form.append("sport_type", "WeightTraining");
@@ -341,12 +354,18 @@ function extractUploadError(body: unknown): string | null {
   return typeof error === "string" && error !== "" ? error : null;
 }
 
+function extractExternalId(body: unknown): string | null {
+  const externalId = objectRecord(body)?.external_id;
+  return typeof externalId === "string" ? externalId : null;
+}
+
 export class StravaClient {
   readonly #settings: StravaSettings;
   readonly #fetch: StravaFetch;
   readonly #now: () => number;
   readonly #sleep: (ms: number) => Promise<void>;
   readonly #log: (line: string) => void;
+  readonly #newExternalId: () => string;
   #token: TokenSnapshot | undefined;
   #refreshToken: string | undefined;
 
@@ -358,6 +377,8 @@ export class StravaClient {
       options.sleep ??
       ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
     this.#log = options.log ?? ((line: string) => console.log(line));
+    this.#newExternalId =
+      options.newExternalId ?? (() => "strava-bot-" + randomUUID());
   }
 
   async getAccessToken(
@@ -473,7 +494,11 @@ export class StravaClient {
     activity: ActivityUploadInput,
     workout: StructuredWorkoutInput,
   ): Promise<ActivityUploadResult> {
-    const form = buildStructuredForm(activity, workout, this.#log);
+    const externalId = this.#newExternalId();
+    const form = buildStructuredForm(
+      { activity, workout, externalId },
+      this.#log,
+    );
     const send = async (): Promise<StravaResponseLike> => {
       const accessToken = await this.getAccessToken();
       return this.#postForm(
@@ -522,6 +547,17 @@ export class StravaClient {
       throw new StravaApiError({
         status: response.status,
         reason: "Strava structured upload response was missing an upload id.",
+        usage,
+        stage: "structured_upload",
+      });
+    }
+    // A record for another external_id is an earlier upload Strava matched,
+    // not this one; polling it would report a stale activity as posted.
+    if (extractExternalId(body) !== externalId) {
+      throw new StravaApiError({
+        status: response.status,
+        reason:
+          "Strava answered the structured upload with a different upload's record.",
         usage,
         stage: "structured_upload",
       });
