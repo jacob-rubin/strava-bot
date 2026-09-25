@@ -108,7 +108,7 @@ tools/probe-auth.sh
 tools/post-fixture.sh --fresh
 ```
 
-[`tools/probe-auth.sh`](../tools/probe-auth.sh) is the read-only check: a wrong `path_token` and a wrong `X-Ingest-Key` must each return 404 with an empty body. It prints status codes and body sizes only.
+[`tools/probe-auth.sh`](../tools/probe-auth.sh) is the read-only check: a wrong `path_token` and a wrong `X-Ingest-Key` must each return 404 with an empty body. It prints status codes and body sizes only. It finds the service from `--service`, then `STRAVA_BOT_SERVICE_URL`, then `terraform output service_url`, so the deployed URL is never committed.
 
 [`tools/post-fixture.sh`](../tools/post-fixture.sh) posts a fixture exactly as the Shortcut would and **creates a real Strava activity** when it succeeds. `--dry-run` prints the payload and sends nothing; `--fixture <name>` picks any file under `tests/fixtures`; `--fresh` rewrites both the slug and the date line so the payload is genuinely new to the idempotency layer — without it, a repeat run correctly answers `already posted`. `--help` lists every flag.
 
@@ -130,4 +130,3 @@ The dry run is the default so an accidental invocation cannot write. A document 
 ---
 
 ← [Docs index](README.md) · [Architecture](architecture.md) · [Configuration](reference/configuration.md)
-

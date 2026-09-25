@@ -25,3 +25,7 @@ dist/
 
 # Vitest coverage output.
 coverage/
+
+# Personal notes on ideas and next steps; kept local and copied into
+# worktrees through .worktreeinclude.
+/next steps/

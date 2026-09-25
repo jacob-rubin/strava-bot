@@ -4,3 +4,4 @@
 /.env
 /terraform/terraform.tfvars
 /node_modules/
+/next steps/

@@ -14,12 +14,13 @@
 # Usage:
 #   tools/probe-auth.sh [--service URL]
 #
-#   --service URL   Base URL of the deployed service. Defaults to the deployed
-#                   Cloud Run URL.
+#   --service URL   Base URL of the deployed service. Defaults to
+#                   STRAVA_BOT_SERVICE_URL, then to
+#                   "terraform output -raw service_url".
 
 set -euo pipefail
 
-service="https://strava-bot-<hash>-uc.a.run.app"
+service=""
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -28,7 +29,7 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     -h | --help)
-      sed -n '3,18s/^# \{0,1\}//p' "$0"
+      sed -n '3,19s/^# \{0,1\}//p' "$0"
       exit 0
       ;;
     *)
@@ -39,6 +40,17 @@ while [[ $# -gt 0 ]]; do
 done
 
 terraform_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../terraform" && pwd)"
+
+service=${service:-${STRAVA_BOT_SERVICE_URL:-}}
+if [[ -z $service ]]; then
+  service=$(cd "$terraform_dir" && terraform output -raw service_url 2>/dev/null) || service=""
+fi
+if [[ $service != https://* ]]; then
+  echo "ERROR: no service URL. Pass --service, set STRAVA_BOT_SERVICE_URL, or run from the main checkout where terraform/ has state." >&2
+  exit 1
+fi
+service=${service%/}
+
 write_out="code=%{http_code} size=%{size_download}"
 fail=0
 
