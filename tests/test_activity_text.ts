@@ -260,7 +260,7 @@ describe("formatActivityText", () => {
 
     expect(result.description).toContain("PR");
     expect(result.description).toContain("volume trend up");
-    expect(result.description).toContain("7 days since last");
+    expect(result.description).not.toMatch(/days since/i);
 
     const squatLine = result.description
       .split("\n")
@@ -359,4 +359,3 @@ describe("HistoryContext assembly", () => {
     expect(context.per_exercise["Deadlift"]?.best_e1rm).toBe(357);
   });
 });
-
