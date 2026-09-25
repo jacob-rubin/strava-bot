@@ -7,34 +7,34 @@ description: Run a live end-to-end sanity check of the deployed strava-bot servi
 
 Confirms the deployed service end to end — auth gate, parser, Firestore, formatting, Strava — by sending a real payload to the live Cloud Run endpoint exactly as the iPhone Shortcut would.
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File tools/post-fixture.ps1 -Fresh
+```bash
+tools/post-fixture.sh --fresh
 ```
 
-Flags: `-Fixture <name>` picks any file under `tests/fixtures` (an unknown name lists them), `-DryRun` prints the exact payload and sends nothing, `-IngestUrl` overrides the endpoint.
+Flags: `--fixture <name>` picks any file under `tests/fixtures` (an unknown name lists them), `--dry-run` prints the exact payload and sends nothing, `--ingest-url` overrides the endpoint, and `--help` lists them all.
 
 ## Live by default
 
 Invoking this skill is the request for a live post: run the command above straight away, without a preliminary dry run and without asking for confirmation. A successful run **creates a real Strava activity** on the owner's account, so say so in the report and give the activity URL so it can be deleted if unwanted.
 
-Use `-DryRun` only when the user asks for one. It reads no credential and sends nothing.
+Use `--dry-run` only when the user asks for one. It reads no credential and sends nothing.
 
-The script resolves the ingest URL from local Terraform state, which exists only in the main checkout, not in a Codex worktree. From a worktree, read `terraform output -raw ingest_url` in the main checkout's `terraform/` directory into `$env:STRAVA_BOT_INGEST_URL` within the same command, without printing it, and then run the script.
+The script resolves the ingest URL from local Terraform state, which exists only in the main checkout, not in a Codex worktree. From a worktree, read `terraform output -raw ingest_url` in the main checkout's `terraform/` directory into an exported `STRAVA_BOT_INGEST_URL` within the same command, without printing it, and then run the script.
 
-For the read-only check that the auth gate still rejects unknown callers, use `tools/probe-auth.ps1` instead.
+For the read-only check that the auth gate still rejects unknown callers, use `tools/probe-auth.sh` instead.
 
-## Why -Fresh matters
+## Why --fresh matters
 
 The service dedupes on two independent keys: the share-link slug, and a `content_hash` over `started_at` plus each exercise name and set count. Randomizing the slug alone is not enough — the content-hash lookup still matches and the service returns `already posted`.
 
-`-Fresh` rewrites the slug *and* the date line to now, which is what makes a repeat run a genuinely new workout. Without it, `already posted` on a second run is correct idempotent behaviour, not a failure.
+`--fresh` rewrites the slug *and* the date line to now, which is what makes a repeat run a genuinely new workout. Without it, `already posted` on a second run is correct idempotent behaviour, not a failure.
 
 ## Reading the result
 
 | Status | Meaning |
 | --- | --- |
 | 200 `posted:` | Worked. The printed URL is the new activity. |
-| 200 `already posted:` | Deduped. Re-run with `-Fresh`. |
+| 200 `already posted:` | Deduped. Re-run with `--fresh`. |
 | 400 | Parse failure. `raw_text` was still persisted, so the fixture can be re-parsed after a parser fix. |
 | 404 | Auth gate. Wrong path_token or X-Ingest-Key; by design the response never says which. |
 | 500 | Firestore. Nothing reached Strava. |
@@ -54,15 +54,15 @@ Since the 401 path re-reads the refresh token through `reloadStravaRefreshToken`
 
 If the deployed revision predates that behaviour, the old rule applies: re-authorize first, then redeploy, because redeploying first just caches the old token again. To get new instances without a rebuild:
 
-```powershell
-gcloud run services update strava-bot --region us-central1 --project strava-bot-508419 --update-env-vars=REDEPLOY_AT=$(Get-Date -Format s)
+```bash
+gcloud run services update strava-bot --region us-central1 --project strava-bot-508419 --update-env-vars=REDEPLOY_AT=$(date +%Y-%m-%dT%H:%M:%S)
 ```
 
 ## Handling secrets
 
 The script reads the path_token from `terraform output -raw ingest_url` and the ingest key from Secret Manager into variables and prints neither, so its output is safe to paste into an issue or an agent context. Keep it that way: do not echo the resolved URL or key, and prefer the `STRAVA_BOT_INGEST_URL` / `STRAVA_BOT_INGEST_KEY` environment variables over flags so the token stays out of shell history.
 
-Do not wrap the script in an `npm run` alias. npm parses `-Fresh` and `-DryRun` as its own config flags and silently drops them, which turns an intended dry run into a real post.
+Do not wrap the script in an `npm run` alias. npm parses `--fresh` and `--dry-run` as its own config flags and silently drops them, which turns an intended dry run into a real post.
 
 ## Deeper diagnosis
 
