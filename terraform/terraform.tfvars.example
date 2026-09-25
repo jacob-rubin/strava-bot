@@ -1,6 +1,6 @@
 # Copy to terraform.tfvars (gitignored) and fill in. Unset variables keep
 # their defaults in variables.tf. The two secrets, strava_client_secret and
-# github_token, do not belong here: tools/terraform-apply.ps1 loads them from
+# github_token, do not belong here: tools/terraform-apply.sh loads them from
 # Secret Manager for each run.
 
 project_id      = "strava-bot-508419"
