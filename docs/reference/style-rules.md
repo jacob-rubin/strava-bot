@@ -48,11 +48,11 @@ Rule IDs are stable, and a retired ID is not reused.
 **Good:** Every module under `app/` has a matching `tests/test_<module>.ts`, and a new module or test is added to the layout in [configuration.md](configuration.md).
 **Enforceable by linter:** no
 
-### R-006: Delete reconstructible comments
+### R-006: Comment only what would otherwise mislead
 
-**Rationale:** Comments should preserve external knowledge, not restate code or spec prose.
-**Bad:** A comment that describes the immediately following implementation; a file-top module-header block that summarizes the module or restates its spec section or constraints, even when it cites section or constraint numbers — the repository-layout document already maps each module to its spec.
-**Good:** No module-header comment blocks. For any other comment, keep only a spec anchor, numbered constraint, ADR, external-system workaround, or safety boundary, normally on one line.
+**Rationale:** Every comment is prose that can drift from the code, so one earns its place only by stopping a careful reader from misreading, "fixing", or deleting correct code.
+**Bad:** A comment that describes the implementation next to it; a doc comment on a field, option, or interface that restates its name or type; a comment above a guard that explains what it prevents when its error message and test already say so; a comment that repeats a reference doc or ADR; a comment that narrates the bug a change fixes, which belongs in the commit and PR; a file-top module-header block, even one that cites constraints — the repository-layout document already maps each module to its spec.
+**Good:** Write no comment by default. Add one only for a specific reason that is confusing without it: code that looks wrong or removable but is correct because of a constraint, ADR, safety boundary, or counterintuitive external-system behaviour. Even then, first try to carry the reason in a name, error message, or test, and prefer a one-line pointer to the constraint, ADR, or reference-doc section over restating it.
 **Enforceable by linter:** no
 
 ### R-007: Fail required invariants explicitly
