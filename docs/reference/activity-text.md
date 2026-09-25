@@ -21,7 +21,7 @@ Service-owned data only: parsed exercises with per-set weight and reps, working-
 
 The title is the workout name, trimmed, falling back to `Workout` when empty. The name appears only in the title, not in the description.
 
-The description is newline-separated lines. The first is a workout-level summary: exercise count and total volume only. Each exercise then gets its own line starting with `• ` (U+2022 and a space): name, load, and working sets, followed — only when that exercise has history — by `PR`, its volume trend, and days since last performed. Lines carry no trailing period.
+The description is newline-separated lines. The first is a workout-level summary: exercise count and total volume only. Each exercise then gets its own line starting with `• ` (U+2022 and a space): name, load, and working sets, followed — only when that exercise has history — by `PR` and its volume trend. Days since last performed is not shown, even though the history context carries it. Lines carry no trailing period.
 
 - **Load** is the top set's weight and unit with no space (`315lb`), omitted when the exercise has no weighted set. When the working sets do not all share that weight and unit it reads `up to 315lb`, so a varied load is never stated as the weight of every set ([Constraint 10](../CONSTRAINTS.md)).
 - **Working sets** reads `4 sets of 5 reps`, singular `set`/`rep` for a count of 1, and just `1 set` when no working set has reps (time, distance). The rep count is always the first working set's reps, even when later sets differ — a deliberate simplification chosen by the owner, since reps are usually constant per exercise; the per-set detail is in the structured upload Strava renders. Warmups are excluded; an exercise with no working sets shows only its name.
@@ -54,4 +54,3 @@ The executable form of this section is [`tests/test_activity_text.ts`](../../tes
 ---
 
 ← [Docs index](../README.md) · [Persistence](persistence.md) · [Input contract](input-contract.md)
-
